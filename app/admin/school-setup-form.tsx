@@ -27,6 +27,7 @@ export function SchoolSetupForm({ org, glAccounts, bankAccounts }: {
   const [busy, setBusy] = useState(false);
   const [badDebtRecoveryId, setBadDebtRecoveryId] = useState(String(org.bad_debt_recovery_account_id ?? ''));
   const [mpesaBankId, setMpesaBankId] = useState(String(org.mpesa_bank_account_id ?? ''));
+  const [discountAccountId, setDiscountAccountId] = useState(String(org.fee_discount_account_id ?? ''));
 
   const save = async () => {
     const form = formRef.current;
@@ -57,6 +58,11 @@ export function SchoolSetupForm({ org, glAccounts, bankAccounts }: {
           <GlAccountSelect name="bad_debt_recovery_account_id" label="Bad debts recovered" accounts={glAccounts}
             value={badDebtRecoveryId} onChange={setBadDebtRecoveryId}
             hint="Credited when a parent pays against a fee balance that was written off" />
+        </div>
+        <div className="grid g2">
+          <GlAccountSelect name="fee_discount_account_id" label="Bursaries, scholarships and discounts" accounts={glAccounts}
+            value={discountAccountId} onChange={setDiscountAccountId}
+            hint="Contra-income account a student's discount posts to as a negative invoice line — gross fees and what was waived both stay visible. Required before a discount can be invoiced." />
         </div>
       </Card>
 

@@ -3,7 +3,7 @@
  * Central's FA Posting Types (Acquisition Cost, Depreciation, Write-Down, Appreciation,
  * Disposal, Maintenance) through the shared postJournal() engine (lib/accounting.ts).
  *
- * No AL source exists for any of this: the companion "Sacco Demo AL" extension never touched
+ * No AL source exists for any of this: the companion AL extension never touched
  * Business Central's stock FA tables, so this module is built from Business Central domain
  * knowledge rather than ported field-for-field — closest precedent in this codebase is
  * lib/itemJournal.ts (maker-checker document -> postJournal()), whose lifecycle

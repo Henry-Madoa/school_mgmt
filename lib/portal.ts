@@ -15,11 +15,16 @@ export interface PortalLinks {
   employee_id: number | null;
   student_id: number | null;
   guardian_id: number | null;
+  /** User Setup "Teacher" — the Teacher Portal is offered inside Self Service. */
+  is_teacher: boolean;
 }
 
-export const getPortalLinks = async (userId: number): Promise<PortalLinks> =>
-  (await one<PortalLinks>('SELECT employee_id, student_id, guardian_id FROM approval_user_setup WHERE user_id = ?', userId))
-    ?? { employee_id: null, student_id: null, guardian_id: null };
+export const getPortalLinks = async (userId: number): Promise<PortalLinks> => {
+  const row = await one<{ employee_id: number | null; student_id: number | null; guardian_id: number | null; is_teacher: number }>(
+    'SELECT employee_id, student_id, guardian_id, is_teacher FROM approval_user_setup WHERE user_id = ?', userId,
+  );
+  return row ? { ...row, is_teacher: !!row.is_teacher } : { employee_id: null, student_id: null, guardian_id: null, is_teacher: false };
+};
 
 /** The teacher (employee id) this login is — refused when the login is not matched to teaching staff. */
 export async function requireTeacher(user: Pick<SessionUser, 'id'>): Promise<number> {
@@ -27,8 +32,7 @@ export async function requireTeacher(user: Pick<SessionUser, 'id'>): Promise<num
   if (!links.employee_id) {
     throw new AppError('Your login is not matched to a member of staff — ask an administrator to set your Employee No. under Admin Centre → User Setup', 'NO_EMPLOYEE');
   }
-  const isTeacher = await one('SELECT 1 FROM teacher_profile WHERE employee_id = ?', links.employee_id);
-  if (!isTeacher) throw new AppError('Your staff record is not flagged as teaching staff — ask the academics office to add you under Teaching Staff', 'NO_EMPLOYEE');
+  if (!links.is_teacher) throw new AppError('Your login is not marked as a teacher — ask an administrator to tick Teacher under Admin Centre → User Setup', 'NO_EMPLOYEE');
   return links.employee_id;
 }
 

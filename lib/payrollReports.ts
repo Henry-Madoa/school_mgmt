@@ -1,8 +1,8 @@
 /*
- * Payroll period reports — the Sacco ERP AL report set (Rep52203525 NSSF, Rep52203531 SHIF,
+ * Payroll period reports — the AL report set (Rep52203525 NSSF, Rep52203531 SHIF,
  * Rep52203527 PAYE, Rep52203528 Net Pay, Rep52203538 Payroll Summary Standard, Rep52203523
  * Payroll Deductions, Rep52203524 Payroll Allowances, Rep52203530 Payroll Company Report,
- * Rep52203536 Pension, Rep52203547 Loan Deductions, Rep52203558 Company Deductions, Rep52203494
+ * Rep52203536 Pension, Rep52203558 Company Deductions, Rep52203494
  * Master Roll, Rep52203540 Payroll Costing), each with the columns of its RDLC layout, read off
  * the Payroll Period Transactions and P9 lines the run wrote.
  *
@@ -91,7 +91,7 @@ export async function getReportFilterOptions(periodId: number): Promise<ReportFi
   };
 }
 
-/** "Department: Finance · Payment mode: FOSA" — the RDLCs' "Applied Filters" line. */
+/** "Department: Finance · Payment mode: Bank Transfer" — the RDLCs' "Applied Filters" line. */
 export function describeReportFilters(f: ReportFilters, o: ReportFilterOptions): string {
   const parts: string[] = [];
   const name = <T extends { id: number; code: string; name: string }>(list: T[], id?: number) => { const v = list.find((x) => x.id === id); return v ? `${v.code} — ${v.name}` : id ? String(id) : ''; };
@@ -118,14 +118,14 @@ export interface PayrollReport {
 
 export const PAYROLL_REPORT_KEYS = [
   'summary', 'master-roll', 'net-pay', 'paye', 'nssf', 'shif', 'housing-levy', 'pension',
-  'allowances', 'deductions', 'loan-deductions', 'company-deductions', 'company', 'costing',
+  'allowances', 'deductions', 'company-deductions', 'company', 'costing',
 ] as const;
 export type PayrollReportKey = typeof PAYROLL_REPORT_KEYS[number];
 
 export const PAYROLL_REPORT_LABELS: Record<PayrollReportKey, string> = {
   summary: 'Payroll Summary', 'master-roll': 'Master Roll', 'net-pay': 'Net Pay', paye: 'PAYE', nssf: 'NSSF', shif: 'SHIF',
   'housing-levy': 'Housing Levy', pension: 'Pension', allowances: 'Allowances', deductions: 'Deductions',
-  'loan-deductions': 'Loan Deductions', 'company-deductions': 'Company Deductions', company: 'Company Report', costing: 'Costing',
+  'company-deductions': 'Company Deductions', company: 'Company Report', costing: 'Costing',
 };
 
 /** The RDLCs' signature strip: role → the office that signs it. */
@@ -250,7 +250,7 @@ export async function buildPayrollReport(periodId: number, key: PayrollReportKey
         rows: numbered(rows) });
     }
     case 'master-roll': {
-      // Rep52203494 — No. | Employee Name | Basic Salary | up to ten earnings | Gross Salary | Taxable Pay | Statutory Deduction | Sacco Deduct. | Other Deduct. | Net Pay
+      // Rep52203494 — No. | Employee Name | Basic Salary | up to ten earnings | Gross Salary | Taxable Pay | Statutory Deduction | Other Deduct. | Net Pay
       const earnCodes = await all<{ transaction_code: string; transaction_name: string; total: number }>(
         `SELECT transaction_code, MIN(transaction_name) AS transaction_name, SUM(amount_cents) AS total FROM payroll_period_transaction
          WHERE payroll_period_id = ? AND group_text = 'ALLOWANCE' AND employee_id IN (SELECT e.id FROM employee e WHERE 1=1${employeeWhere(filters, 'e').sql})
@@ -263,20 +263,19 @@ export async function buildPayrollReport(periodId: number, key: PayrollReportKey
         const m = perEmp.get(l.employee_id) ?? {}; const k = rest.has(l.transaction_code) ? 'OTHER_EARN' : l.transaction_code;
         m[k] = (m[k] ?? 0) + n(l.v); perEmp.set(l.employee_id, m);
       }
-      const sacco = await codeByEmployee(periodId, "group_text = 'DEDUCTIONS' AND loan_id IS NOT NULL");
       const rows = emps.map((e): ReportRow => {
         const earn = perEmp.get(e.employee_id) ?? {};
-        const statutory = e.nssf + e.shif + e.ahl + e.paye; const saccoDed = sacco.get(e.employee_id) ?? 0;
+        const statutory = e.nssf + e.shif + e.ahl + e.paye;
         const cells: Record<string, string | number | null> = { name: e.name, emp_no: e.employee_no, basic: e.basic };
         for (const c of shown) cells[c.transaction_code] = earn[c.transaction_code] ?? 0;
         if (rest.size) cells.OTHER_EARN = earn.OTHER_EARN ?? 0;
-        Object.assign(cells, { gross: e.gross, taxable: e.taxable, statutory, sacco: saccoDed, other: e.deductions - saccoDed, net: e.net });
+        Object.assign(cells, { gross: e.gross, taxable: e.taxable, statutory, other: e.deductions, net: e.net });
         return { cells };
       });
       return finish({ title: 'Master Roll', forLabel: 'Master Roll For', landscape: true,
         columns: [text('no', 'No.', { kind: 'int', width: '3%' }), text('emp_no', 'Emp No.'), text('name', 'Employee Name'), money('basic', 'Basic Salary'),
           ...shown.map((c) => money(c.transaction_code, c.transaction_name)), ...(rest.size ? [money('OTHER_EARN', 'Other Earnings')] : []),
-          money('gross', 'Gross Salary'), money('taxable', 'Taxable Pay'), money('statutory', 'Statutory Deduction'), money('sacco', 'Loan Deduct.'), money('other', 'Other Deduct.'), money('net', 'Net Pay')],
+          money('gross', 'Gross Salary'), money('taxable', 'Taxable Pay'), money('statutory', 'Statutory Deduction'), money('other', 'Other Deduct.'), money('net', 'Net Pay')],
         rows: numbered(rows) });
     }
     case 'pension': {
@@ -313,17 +312,6 @@ export async function buildPayrollReport(periodId: number, key: PayrollReportKey
         columns: [text('code', 'Trans. Code'), text('name', 'Transaction Name'), text('employees', 'Employees', { kind: 'int' }), money('amount', 'Amount')],
         rows, meta: [{ label: 'Grouped by', value: captions.caption2 }] });
     }
-    case 'loan-deductions': {
-      // Rep52203547 — Emp. Code | Staff Name | Transaction Code | Amount | Interest Amount | Balance
-      const lines = await all<{ employee_no: string; staff_name: string; transaction_code: string; loan_no: string; amount: number; interest: number; balance: number }>(
-        `SELECT e.employee_no, t.staff_name, t.transaction_code, ln.loan_no, t.amount_cents AS amount, t.balance_cents AS balance,
-                COALESCE((SELECT SUM(GREATEST(s.interest_due - s.interest_paid, 0)) FROM loan_schedule s WHERE s.loan_id = t.loan_id AND s.due_date >= ? AND s.due_date <= ?), 0) AS interest
-         FROM payroll_period_transaction t JOIN employee e ON e.id = t.employee_id JOIN loan ln ON ln.id = t.loan_id
-         WHERE t.payroll_period_id = ? AND t.loan_id IS NOT NULL${lineWhere} ORDER BY e.first_name, e.last_name, ln.loan_no`, period.start_date, period.end_date, periodId, ...lineParams);
-      const rows = lines.map((l): ReportRow => ({ cells: { emp_no: l.employee_no, name: l.staff_name, code: l.transaction_code, loan_no: l.loan_no, amount: n(l.amount), interest: Math.min(n(l.interest), n(l.amount)), balance: n(l.balance) } }));
-      return finish({ title: 'Loan Deductions Report', forLabel: 'Loan Deduction Report For Period', landscape: false,
-        columns: [text('emp_no', 'Emp. Code'), text('name', 'Staff Name'), text('code', 'Transaction Code'), text('loan_no', 'Loan No.'), money('amount', 'Amount'), money('interest', 'Interest Amount'), money('balance', 'Balance', { sum: true })], rows });
-    }
     case 'company-deductions': {
       // Rep52203558 — per deduction: No | Emp. No | Employee Name | Department | Amount | Balance
       const lines = await all<{ transaction_code: string; transaction_name: string; employee_no: string; staff_name: string; department: string | null; amount: number; balance: number | null }>(
@@ -356,14 +344,13 @@ export async function buildPayrollReport(periodId: number, key: PayrollReportKey
       flush();
       const gross = emps.reduce((s, e) => s + e.gross, 0); const net = emps.reduce((s, e) => s + e.net, 0);
       const statutory = emps.reduce((s, e) => s + e.nssf + e.shif + e.ahl + e.paye, 0); const other = emps.reduce((s, e) => s + e.deductions, 0);
-      const bank = emps.filter((e) => e.payment_mode !== 'FOSA').reduce((s, e) => s + e.net, 0);
-      const fosaNet = net - bank;
+      const bank = emps.filter((e) => e.payment_mode === 'Bank Transfer').reduce((s, e) => s + e.net, 0);
       return finish({ title: 'Payroll Company Report', forLabel: 'Company Payroll Totals For', landscape: false, grouped: true,
         columns: [text('code', 'Code'), text('name', 'Transaction Name'), text('employees', 'Employees', { kind: 'int' }), money('amount', 'Total Amount', { sum: false })],
         rows, meta: [
           { label: 'Gross Pay', value: formatMoney(gross) }, { label: 'Total Statutory Deductions', value: formatMoney(statutory) },
           { label: 'Total Other Deductions', value: formatMoney(other) }, { label: 'NET SALARY', value: formatMoney(net) },
-          { label: 'Bank Transfer Amount', value: formatMoney(bank) }, { label: 'Paid to FOSA', value: formatMoney(fosaNet) },
+          { label: 'Bank Transfer Amount', value: formatMoney(bank) }, { label: 'Paid by Cheque, Cash or M-Pesa', value: formatMoney(net - bank) },
         ] });
     }
     case 'costing': {

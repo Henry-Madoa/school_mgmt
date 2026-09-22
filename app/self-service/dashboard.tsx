@@ -87,7 +87,7 @@ export async function SelfServiceDashboard({ user, me }: { user: SessionUser; me
             <CardHead title="My record" sub="As HR holds it — request a change under My Record">
               <Link href="/self-service/record" className="btn sm ghost">My record</Link>
             </CardHead>
-            <div className="member-photo" style={{ marginBottom: 'var(--sp)' }}>
+            <div className="profile-photo" style={{ marginBottom: 'var(--sp)' }}>
               {imageSrc(me.photo_image, { width: 104, height: 104, crop: 'fill' })
                 ? <img src={imageSrc(me.photo_image, { width: 104, height: 104, crop: 'fill' })!} alt={`${me.first_name} ${me.last_name}`} className="photo" />
                 : <div className="avatar" aria-hidden="true">{initials(`${me.first_name} ${me.last_name}`)}</div>}

@@ -11,7 +11,8 @@ import { initials } from '@/lib/format';
 import { Page } from '@/components/layout/page';
 import { Card, CardHead, DefinitionList, EmptyState, Pill, TableWrap, Toolbar, Spacer } from '@/components/ui/primitives';
 import { TimetableGrid } from '@/components/school/timetable-grid';
-import { TeacherProfileFormButton, RemoveTeacherButton, AssignTeacherButton, UnassignButton } from '../teacher-forms';
+import { EditableCard } from '@/components/ui/editable-card';
+import { TeacherProfileEditForm, RemoveTeacherButton, AssignTeacherButton, UnassignButton } from '../teacher-forms';
 
 export default async function TeacherPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireAction('TEACHERS_READ');
@@ -37,12 +38,10 @@ export default async function TeacherPage({ params }: { params: Promise<{ id: st
         <Link href="/teachers" className="btn ghost sm">← Teaching staff</Link>
         <Spacer />
         <Link href={`/employees/view/${employeeId}`} className="btn ghost">HR record</Link>
-        {canManage ? <TeacherProfileFormButton teacher={teacher} className="btn ghost">Edit profile</TeacherProfileFormButton> : null}
         {canManage ? <RemoveTeacherButton employeeId={employeeId} /> : null}
       </Toolbar>
 
-      <Card>
-        <CardHead title="Profile" sub="The teaching profile — HR keeps the employment record"><Pill status={teacher.employee_status} /></CardHead>
+      <EditableCard title="Profile" sub="The teaching profile — HR keeps the employment record" canEdit={canManage} badge={<Pill status={teacher.employee_status} />} form={<TeacherProfileEditForm teacher={teacher} />}>
         <div className="grid g2">
           <div className="inline" style={{ gap: 14 }}>
             <div style={{ width: 96, height: 96, borderRadius: '50%', overflow: 'hidden', flex: '0 0 auto' }}>
@@ -58,7 +57,7 @@ export default async function TeacherPage({ params }: { params: Promise<{ id: st
             ['Portal login', logins.length ? logins.map((l) => l.username).join(', ') : <span className="muted-cell" key="l">None — link a user under Administration › Security › User Setup</span>],
           ]} />
         </div>
-      </Card>
+      </EditableCard>
 
       <Card>
         <CardHead title={`Subjects taught — ${year?.name ?? 'no current year'}`} sub="Each assignment lets the teacher mark the register and enter marks for that class">

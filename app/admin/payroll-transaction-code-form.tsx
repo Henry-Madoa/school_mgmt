@@ -19,7 +19,7 @@ const TYPE_OPTIONS = [
   { value: 'INCOME', label: 'Income' }, { value: 'DEDUCTION', label: 'Deduction' }, { value: 'COMPANY_DEDUCTION', label: 'Company Deduction' },
 ];
 const BALANCE_OPTIONS = [
-  { value: 'NONE', label: 'None' }, { value: 'INCREASING', label: 'Increasing' }, { value: 'REDUCING', label: 'Reducing (loan-style)' },
+  { value: 'NONE', label: 'None' }, { value: 'INCREASING', label: 'Increasing' }, { value: 'REDUCING', label: 'Reducing balance (a staff advance)' },
 ];
 const SPECIAL_OPTIONS = [
   { value: 'NONE', label: '—' }, { value: 'BASIC_SALARY', label: 'Basic Salary' }, { value: 'HOUSE_ALLOWANCE', label: 'House Allowance' },
@@ -30,7 +30,7 @@ const SPECIAL_OPTIONS = [
   { value: 'PRMF', label: 'Post-retirement medical fund (P9 col. J)' },
   { value: 'NON_CASH_BENEFIT', label: 'Non-cash benefit (P9 col. B — taxed, not paid)' },
   { value: 'VALUE_OF_QUARTERS', label: 'Value of quarters (P9 col. C — taxed, not paid)' },
-  { value: 'LOAN', label: 'Loan' }, { value: 'SALARY_ARREARS', label: 'Salary Arrears' }, { value: 'DIRECTORS_FEE', label: "Director's Fee" },
+  { value: 'LOAN', label: 'Staff Advance' }, { value: 'SALARY_ARREARS', label: 'Salary Arrears' }, { value: 'DIRECTORS_FEE', label: "Director's Fee" },
 ];
 
 export function TransactionCodeFormButton({ code, accounts, className = 'btn', children }: {

@@ -5,7 +5,7 @@
  * duplicate-code guards, `audit()`, and INACTIVE instead of a hard delete so posted history
  * never dangles.
  *
- * No AL source exists for any of this — the companion "Sacco Demo AL" extension only adds Motor
+ * No AL source exists for any of this — the companion AL extension only adds Motor
  * Vehicle fields on top of Business Central's stock FA tables. See lib/faJournal.ts's header.
  */
 import { one, all, run, audit, hasAnyRow } from './db.ts';

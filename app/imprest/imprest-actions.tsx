@@ -371,7 +371,7 @@ function PettyCashFields({ lookups, initial, lines, setLines, limit }: {
         <SearchableSelect id="f_payingBankAccountId" name="payingBankAccountId" label="Petty cash float" items={lookups.floats}
           getValue={(b) => String(b.id)} getLabel={(b) => `${b.code} — ${b.name}`} value={float} onChange={setFloat}
           placeholder={lookups.floats.length ? 'Search float…' : 'No petty cash float set up'} emptyText="No petty cash floats"
-          hint="A bank account of type Petty cash float (or a till)" />
+          hint="A bank account of type Petty cash float (or the cash office till)" />
       </div>
       <Field name="paymentNarration" label="Payment narration" required defaultValue={initial?.payment_narration ?? ''} />
       <div className="grid g4">

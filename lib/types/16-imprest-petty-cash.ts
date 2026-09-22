@@ -7,7 +7,7 @@ export type EmployeeLedgerEntryType =
   | 'IMPREST_ISSUE' | 'IMPREST_SURRENDER' | 'IMPREST_REFUND' | 'CLAIM_PAID' | 'PAYROLL_RECOVERY'
   | 'PAYROLL_CLAIM' | 'RECEIPT' | 'PAYMENT' | 'STAFF_CLAIM';
 
-/** The employee subledger — positive means the employee owes the SACCO. */
+/** The employee subledger — positive means the employee owes the school. */
 export interface EmployeeLedgerEntry {
   id: number;
   employee_id: number;

@@ -134,7 +134,7 @@ export async function buildPayslipDocument(periodId: number, employeeId: number)
  * The KRA P9 Tax Deduction Card, laid out as the revised form (Tax Laws (Amendment) Act 2024):
  * the lettered columns A–O with the three-way defined-contribution test under E, the employer /
  * employee identification block above, and the "to be completed by the employer at the end of
- * the year" strip with the form's notes beneath. Confirmed against the Sacco ERP P9 Report.rdl
+ * the year" strip with the form's notes beneath. Confirmed against the ERP P9 Report.rdl
  * (which carries the older H–L lettering) — the figures come from the same P9 line the run writes.
  */
 const P9_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];

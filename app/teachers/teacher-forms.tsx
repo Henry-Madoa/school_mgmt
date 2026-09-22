@@ -5,6 +5,7 @@ import { FormModal } from '@/components/ui/form-modal';
 import { Field } from '@/components/ui/field';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useRunAction } from '@/components/ui/run-action';
+import { useEditableCard } from '@/components/ui/editable-card';
 import { saveTeacherProfileRequest, removeTeacherProfileRequest, assignTeacherRequest, unassignTeacherRequest } from '@/app/actions/academics';
 import type { StreamView, Subject, TeacherView } from '@/lib/types';
 
@@ -36,6 +37,21 @@ export function TeacherProfileFormButton({ teacher, employees, className = 'btn'
         </FormModal>
       ) : null}
     </>
+  );
+}
+
+/** The inline editor on the teacher card's Profile. */
+export function TeacherProfileEditForm({ teacher }: { teacher: TeacherView }) {
+  const { close } = useEditableCard();
+  return (
+    <FormModal inline title="" onClose={close} onSubmit={saveTeacherProfileRequest} submitLabel="Save changes" successTitle="Profile updated">
+      <input type="hidden" name="employee_id" value={teacher.employee_id} />
+      <div className="grid g3">
+        <Field name="tsc_number" label="TSC number" defaultValue={teacher.tsc_number} uppercase />
+        <Field name="qualification" label="Qualification" defaultValue={teacher.qualification} placeholder="e.g. B.Ed (Arts)" />
+        <Field name="specialisation" label="Specialisation" defaultValue={teacher.specialisation} placeholder="e.g. Mathematics / Physics" />
+      </div>
+    </FormModal>
   );
 }
 

@@ -38,8 +38,6 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "SaccoDemo",
-    "sms-kenya"
+    "node_modules"
   ]
 }

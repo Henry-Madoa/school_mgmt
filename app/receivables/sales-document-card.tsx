@@ -12,9 +12,9 @@ import { saveSalesDocument, type SalesLineDraft } from '@/app/actions/receivable
 import { DocFields, linesOf, type SalesDocLookups } from './sales-document-form';
 import type { SalesDocumentDetail } from '@/lib/types';
 
-/** The sales document's own card, editable in place — the same pattern as the member application
+/** The sales document's own card, editable in place — the same pattern as the admission application
  *  and employee cards. lib/salesDocuments.ts replaces the whole header and every line on save,
- *  so, like the loan card, this stays a single section rather than a per-FastTab save. */
+ *  so this stays a single section rather than a per-FastTab save. */
 export function SalesDocumentCard({ doc, lookups, canEdit }: {
   doc: SalesDocumentDetail; lookups: SalesDocLookups; canEdit: boolean;
 }) {

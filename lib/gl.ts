@@ -201,7 +201,7 @@ export interface CreateJournalInput {
 }
 
 /** Business-Central-style guard: a G/L account flagged no_direct_posting is controlled by a
- *  subledger (Bank, the savings liability control account, the loan receivable control
+ *  subledger (Bank, the receivables control account, the payables control
  *  account) and must be posted through it instead — deposit/withdraw, disburse/repay, or a
  *  Bank Reconciliation, all of which still post through postJournal() directly and are
  *  unaffected by this check. Manual-journal-only, so it belongs here rather than in
@@ -217,7 +217,7 @@ async function assertNoDirectPosting(lines: { account: number | string }[]): Pro
       );
     if (acct?.no_direct_posting) {
       throw new AppError(
-        `Account ${acct.code} is controlled by a subledger — post through Savings, Loans or Bank Reconciliation instead of a manual journal`,
+        `Account ${acct.code} is controlled by a subledger — post through Receivables, Payables, Cash Management or Bank Reconciliation instead of a manual journal`,
         'VALIDATION',
       );
     }

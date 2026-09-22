@@ -30,7 +30,7 @@ export function NoSeriesFormButton({ row, className = 'btn', children }: {
         >
           {row ? <input type="hidden" name="originalCode" value={row.code} /> : null}
           <Field name="code" label="Code" defaultValue={row?.code} required disabled={!!row} uppercase
-            hint="e.g. LOAN, MEMBER — the identifier the documents draw from" />
+            hint="e.g. STUDENT, FEE_INVOICE_RUN — the identifier the documents draw from" />
           <Field name="description" label="Description" defaultValue={row?.description} required />
           <Field type="checkbox" name="defaultNos" label="Default Nos. — offered automatically on a new document"
             defaultValue={row ? row.default_nos : 1} />

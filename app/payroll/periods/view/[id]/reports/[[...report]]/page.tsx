@@ -24,7 +24,7 @@ const EXPORTS: Partial<Record<PayrollReportKey, { href: string; params: Record<s
 };
 
 /** Reports read off the period transactions, where a single transaction code is a meaningful filter. */
-const LINE_REPORTS: PayrollReportKey[] = ['allowances', 'deductions', 'loan-deductions', 'company-deductions', 'company', 'costing'];
+const LINE_REPORTS: PayrollReportKey[] = ['allowances', 'deductions', 'company-deductions', 'company', 'costing'];
 
 export default async function PayrollReportsPage({ params, searchParams }: { params: Promise<{ id: string; report?: string[] }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireAction('PAYROLL_PERIODS_READ');

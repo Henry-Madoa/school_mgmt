@@ -5,7 +5,7 @@
  * admin picks a table and a subset of its columns, then can export that data to
  * CSV and re-import a CSV to bulk insert/update rows, writing straight into the
  * base table for data migration — bypassing whatever approval workflow that
- * entity normally goes through (e.g. Member Application approval).
+ * entity normally goes through (e.g. Admission Application approval).
  *
  * Table and column discovery both introspect Postgres directly (the same
  * information_schema approach as lib/workflow.ts's tableSchema()), generalized
@@ -35,7 +35,6 @@ const EXCLUDED_TABLES = new Set([
   'app_user', 'role',                                 // auth — already has its own Admin Centre UI
   'journal', 'journal_line',                          // double-entry ledger — only postJournal() may write these
   'workflow_task',                                     // approval routing state
-  'savings_account', 'loan', 'loan_schedule', 'txn',   // balance-bearing operational ledgers
 ]);
 
 /* ------------------------------------------------------------- table + column discovery */
@@ -364,7 +363,7 @@ export async function importConfigPackage(code: string, csvText: string, user: A
 
   // A row that doesn't match the key field (or there is no key field at all) gets inserted as a
   // brand-new row, which means every NOT NULL, no-default column of the table must have a value
-  // — checked here, per row, so a template missing e.g. a member's first_name fails with a
+  // — checked here, per row, so a template missing e.g. a student's first_name fails with a
   // clear message instead of a raw Postgres "null value in column ... violates not-null
   // constraint" the moment the insert runs.
   const requiredFields = columns.filter((c) => c.required).map((c) => c.name);

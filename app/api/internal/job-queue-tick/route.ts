@@ -12,7 +12,7 @@
 import { runDueJobQueueEntries } from '@/lib/jobQueue';
 
 export async function POST(request: Request): Promise<Response> {
-  const expected = (globalThis as { __saccoJobQueueToken?: string }).__saccoJobQueueToken;
+  const expected = (globalThis as { __schoolJobQueueToken?: string }).__schoolJobQueueToken;
   const given = request.headers.get('x-internal-token');
   if (!expected || given !== expected) {
     return new Response('Forbidden', { status: 403 });

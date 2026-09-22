@@ -1,5 +1,5 @@
 /*
- * Petty Cash, Imprest Request and Imprest Surrender — AL (Sacco ERP) Tab52203444/445 "Petty Cash
+ * Petty Cash, Imprest Request and Imprest Surrender — AL Tab52203444/445 "Petty Cash
  * Header/Details", Tab52203447/449 "Request Header/Lines" with Request Type Imprest → Surrender,
  * Tab52203660 "Imprest Purpose", Cod52203432 "Imprest Management" (PostImprestRequest,
  * PostImprestSurrender, TransferUnsurrenderedImprestToPayroll) and Cod52203434.PostPettyCash.
@@ -7,7 +7,7 @@
  * The employee is a subledger, as in BC: every issue, surrender, refund, claim and payroll
  * recovery is an employee_ledger_entry against one control G/L (General Ledger Setup → imprest
  * control account, 1215), and the control account mirrors the ledger line for line. Positive
- * means the employee owes the SACCO.
+ * means the employee owes the school.
  *
  * Imprest, with R = requested, A = actually spent:
  *   Issue        Dr Control R           Cr paying bank R          ledger +R           [Issued]
@@ -814,7 +814,7 @@ export async function getPettyCashDetail(no: string): Promise<PettyCashDetail | 
   return { ...head, line_items: await listPettyCashLines(no) };
 }
 
-/** Petty cash floats — bank accounts kept for it; a till does as well. */
+/** Petty cash floats — bank accounts kept for it; the cash office till does as well. */
 export const listPettyCashFloats = (): Promise<{ id: number; code: string; name: string; balance: Cents; min_balance: Cents; account_type: string }[]> =>
   all("SELECT id, code, name, balance, min_balance, account_type FROM bank_account WHERE status = 'ACTIVE' AND blocked = 0 AND account_type IN ('PETTY_CASH', 'TILL') ORDER BY account_type, code");
 
@@ -852,7 +852,7 @@ async function assertPettyCashInput(input: PettyCashInput): Promise<Cents> {
   }
   if (input.payingBankAccountId) {
     const ok = (await listPettyCashFloats()).some((b) => b.id === input.payingBankAccountId);
-    if (!ok) throw new AppError('The paying account must be a petty cash float or a till', 'VALIDATION');
+    if (!ok) throw new AppError('The paying account must be a petty cash float or the cash office till', 'VALIDATION');
   }
   return total;
 }

@@ -52,6 +52,7 @@ export async function saveOrganisation(values: FormValues): Promise<ActionResult
       imprest_surrender_period: String(values.imprest_surrender_period || '14D').trim() || '14D',
       bad_debt_recovery_account_id: values.bad_debt_recovery_account_id ? Number(values.bad_debt_recovery_account_id) : null,
       mpesa_bank_account_id: values.mpesa_bank_account_id ? Number(values.mpesa_bank_account_id) : null,
+      fee_discount_account_id: values.fee_discount_account_id ? Number(values.fee_discount_account_id) : null,
     }, user);
     // The school's name, logo and currency appear in the shell on every page.
     revalidatePath('/', 'layout');

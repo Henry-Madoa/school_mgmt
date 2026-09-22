@@ -11,7 +11,7 @@ const labelFor = (a: GlAccountSelectOption): string => `${a.code} — ${a.name}`
  * A searchable Chart of Accounts picker — a text input that filters the account list by code or
  * name as you type, backed by a hidden `name`-field input so it drops into readForm()'s
  * FormData-based forms exactly like a native <select> (and slots into a controlled row's own
- * value/onChange state just as easily). Built the same way components/ui/member-select.tsx is,
+ * value/onChange state just as easily). Built the same way components/ui/student-select.tsx is,
  * for the same reason: a chart of accounts runs long enough that scrolling a native dropdown to
  * find one by eye doesn't scale, and nothing here defaults to the first row — the field opens
  * empty (or showing whatever was already picked) until the officer actually searches.

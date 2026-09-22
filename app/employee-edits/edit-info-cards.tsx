@@ -14,7 +14,7 @@ import type { EditLookups } from './edit-actions';
 import type { EmployeeEditRequestView } from '@/lib/types';
 import { EmailLink, PhoneLink } from '@/components/ui/contact-link';
 
-/** Mirrors app/member-edits/view/[no]/info-cards.tsx's inline-editable card pattern: an Edit
+/** The inline-editable card pattern: an Edit
  *  button swaps the card's read-only view for its own <form>; Save posts just that section's
  *  fields (lib/employeeEdits.ts's updateEmployeeEditRequest() only touches fields it's given). */
 function useInlineEdit(no: string, startEditing = false) {

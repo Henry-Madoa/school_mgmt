@@ -2,7 +2,7 @@
  * Message outbox — every outbound e-mail and SMS is written here first, then delivered.
  *
  * Before this, lib/mailer.ts and lib/sms.ts sent inline and swallowed failures: a gateway hiccup
- * or a missing key meant the member simply never got the slip, and nobody could tell. Now:
+ * or a missing key meant the parent simply never got the slip, and nobody could tell. Now:
  *
  *   enqueue      the caller's send becomes a QUEUED row (channel, recipient, body, what document
  *                it is about) and returns at once — a posting is never held up by a gateway;

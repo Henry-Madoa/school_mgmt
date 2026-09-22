@@ -105,7 +105,7 @@ export function AddTransactionButton({ employeeId, periodId, periodStart, codes,
                 type="currency" required
                 hint={pickedCode?.is_formula ? `The run computes ${pickedCode.formula} and takes the ${pickedCode.amount_preference === 'HIGHER' ? 'higher' : 'lower'} of that and this amount` : undefined} />
             )}
-            <Field name="originalAmountCents" label="Original amount" type="currency" hint="Reducing-balance codes only (e.g. a loan's principal)" />
+            <Field name="originalAmountCents" label="Original amount" type="currency" hint="Reducing-balance codes only (e.g. a staff advance)" />
           </div>
 
           <h4 className="section-title">When</h4>

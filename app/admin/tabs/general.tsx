@@ -100,7 +100,7 @@ export async function DocumentNoSeriesTab() {
       </p>
       {categories.map((cat) => {
         const rows = docs.filter((d) => d.category === cat);
-        const icon = { Membership: '👥', FOSA: '💰', Credit: '📄', Finance: '⚖️', General: '⚙️' }[cat] ?? '📁';
+        const icon = { Academics: '🎓', Receivables: '💰', Payables: '📄', 'Cash Management': '🏦', Finance: '⚖️', 'Fixed Assets': '🚌', 'HR & Payroll': '🧑‍💼', Inventory: '📦', General: '⚙️' }[cat] ?? '📁';
         const assigned = rows.filter((d) => d.series_code).length;
         return (
           <Card key={cat}>
@@ -288,7 +288,7 @@ export function DimensionValuesCard({ slot, caption, values }: {
         <DimensionValueFormButton slot={slot} caption={caption}>Add value</DimensionValueFormButton>
       </Toolbar>
       <Card>
-        <CardHead title={caption} sub={`Values available for the ${caption} field on members and GL postings`} />
+        <CardHead title={caption} sub={`Values available for the ${caption} field on students, employees and GL postings`} />
         {values.length ? (
           <TableWrap>
             <thead>

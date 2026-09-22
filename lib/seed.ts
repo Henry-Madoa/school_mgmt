@@ -6,7 +6,7 @@
  * organisation already exists.
  */
 import crypto from 'node:crypto';
-import { one, all, run, tx, nextSequence, hasAnyRow } from './db.ts';
+import { one, all, run, tx, nextSequence, nextSequenceBatch, hasAnyRow } from './db.ts';
 import { hashPassword } from './auth.ts';
 import { PRESETS } from './themes.ts';
 import { addMonths } from './dates.ts';
@@ -109,6 +109,7 @@ const CHART: ChartRow[] = [
   ['4060', 'Examination and Assessment Fees', 'INCOME', '4000', 1],
   ['4070', 'Admission and Registration Fees', 'INCOME', '4000', 1],
   ['4080', 'Uniform, Books and Stationery Sales', 'INCOME', '4000', 1],
+  ['4090', 'Bursaries, Scholarships and Discounts (contra)', 'INCOME', '4000', 1],
   ['4099', 'FEE INCOME  TOTALS', 'INCOME', null, 0, 'END_TOTAL', '4000..4099'],
   ['4100', 'OTHER INCOME', 'INCOME', null, 0, 'BEGIN_TOTAL'],
   ['4110', 'Government Capitation Grants', 'INCOME', '4100', 1],
@@ -170,6 +171,8 @@ const ACADEMICS: ActionKey[] = [
   'CLASSES_READ', 'CLASSES_MANAGE', 'TIMETABLE_READ', 'TIMETABLE_MANAGE', 'ATTENDANCE_READ', 'ATTENDANCE_MARK',
   'ASSESSMENTS_READ', 'ASSESSMENTS_ENTER', 'REPORT_CARDS_READ', 'REPORT_CARDS_PUBLISH', 'ANNOUNCEMENTS_READ', 'ANNOUNCEMENTS_MANAGE',
   'ADMIN_ACADEMIC_YEARS_MANAGE', 'ADMIN_ACADEMIC_STRUCTURE_MANAGE', 'ADMIN_SUBJECTS_MANAGE', 'ADMIN_GRADING_MANAGE', 'ADMIN_ASSESSMENT_TYPES_MANAGE',
+  'ADMISSIONS_READ', 'ADMISSIONS_MANAGE', 'INCIDENTS_READ', 'INCIDENTS_MANAGE', 'STUDENTS_SUBJECTS_MANAGE',
+  'TRANSPORT_READ', 'TRANSPORT_MANAGE', 'TRANSPORT_WORK_TICKETS', 'HOSTEL_READ', 'HOSTEL_MANAGE', 'LIBRARY_READ', 'LIBRARY_MANAGE', 'LIBRARY_SETUP_MANAGE',
 ];
 const FEES: ActionKey[] = ['FEES_READ', 'FEES_STRUCTURE_MANAGE', 'FEES_INVOICE_RUN', 'FEES_REMIND', 'ADMIN_FEE_ITEMS_MANAGE', 'MPESA_READ', 'MPESA_INITIATE', 'MPESA_ALLOCATE'];
 const FINANCE: ActionKey[] = [
@@ -228,7 +231,7 @@ export const ROLES: RoleSeed[] = [
   {
     name: 'Teacher',
     description: 'Teaching staff: their own classes, registers, marks and announcements, plus Employee Self Service.',
-    actions: [...COMMON, 'TEACHER_PORTAL_VIEW', 'TEACHER_PORTAL_ATTENDANCE', 'TEACHER_PORTAL_ASSESSMENTS', 'TEACHER_PORTAL_ANNOUNCE', 'TIMETABLE_READ', ...SELF_SERVICE],
+    actions: [...COMMON, 'TEACHER_PORTAL_VIEW', 'TEACHER_PORTAL_ATTENDANCE', 'TEACHER_PORTAL_ASSESSMENTS', 'TEACHER_PORTAL_ANNOUNCE', 'TIMETABLE_READ', 'LIBRARY_READ', 'HOSTEL_READ', 'TRANSPORT_READ', ...SELF_SERVICE],
   },
   {
     name: 'Bursar',
@@ -236,7 +239,8 @@ export const ROLES: RoleSeed[] = [
     actions: [...COMMON, ...FEES, 'STUDENTS_READ', 'GUARDIANS_READ', 'CLASSES_READ',
       'RECEIVABLES_READ', 'RECEIVABLES_CUSTOMER_MANAGE', 'RECEIVABLES_SALES_CREATE', 'RECEIVABLES_SALES_POST', 'RECEIVABLES_REMINDER_MANAGE', 'RECEIVABLES_APPLY_ENTRIES',
       'CASH_MGMT_READ', 'CASH_MGMT_RECEIPT_CREATE', 'CASH_MGMT_RECEIPT_POST', 'CASH_MGMT_PV_CREATE', 'CASH_MGMT_APPLY_ENTRIES', 'CASH_MGMT_RECONCILE', 'CASH_MGMT_BANK_MANAGE',
-      'PAYABLES_READ', 'PAYABLES_PURCHASE_CREATE', 'GL_READ', 'REPORTS_VIEW', 'IMPREST_READ', 'IMPREST_CREATE', 'IMPREST_ISSUE', 'IMPREST_POST', ...SELF_SERVICE],
+      'PAYABLES_READ', 'PAYABLES_PURCHASE_CREATE', 'GL_READ', 'REPORTS_VIEW', 'IMPREST_READ', 'IMPREST_CREATE', 'IMPREST_ISSUE', 'IMPREST_POST',
+      'TRANSPORT_READ', 'HOSTEL_READ', 'LIBRARY_READ', 'LIBRARY_SETUP_MANAGE', ...SELF_SERVICE],
   },
   {
     name: 'Accountant',
@@ -316,6 +320,7 @@ export async function seedIfEmpty(): Promise<SeedResult> {
     const result = await seedDemoSchool(now, todayIso);
     await seedFixedAssets(now, todayIso);
     await seedPayables(now, todayIso);
+    await seedSchoolServices(now, todayIso);
     return result;
   }, { timeout: Number(process.env.SEED_TX_TIMEOUT_MS) || 3_600_000 });
 
@@ -344,7 +349,7 @@ const acc = async (code: string): Promise<number> =>
 async function seedReferenceData(now: IsoDateTime, todayIso: IsoDate): Promise<void> {
   const INS_SEQ = 'INSERT INTO sequence (name, prefix, next_no, width) VALUES (?,?,?,?)';
   const SEQUENCES: [string, string, number, number][] = [
-    ['STUDENT', 'ADM', 1001, 5], ['FEE_INVOICE_RUN', 'FEE', 1, 5],
+    ['STUDENT', 'ADM', 1001, 5], ['ADMISSION_APPLICATION', 'APP', 1, 5], ['WORK_TICKET', 'WT', 1, 5], ['LIBRARY_BOOK', 'ACC', 1, 5], ['FEE_INVOICE_RUN', 'FEE', 1, 5],
     ['JOURNAL', 'JV', 1, 8], ['JOURNAL_DRAFT', 'JVD', 1, 6],
     ['ITEM', 'ITM', 1, 6], ['ITEM_JOURNAL', 'IJL', 1, 6], ['FIXED_ASSET', 'FA', 1, 6], ['FA_JOURNAL', 'FAJ', 1, 6],
     ['CUSTOMER', 'C', 1001, 5], ['SALES_QUOTE', 'SQ', 1, 6], ['SALES_ORDER', 'SO', 1, 6], ['SALES_INVOICE', 'SI', 1, 6], ['SALES_CREDIT_MEMO', 'SM', 1, 6],
@@ -380,8 +385,8 @@ async function seedReferenceData(now: IsoDateTime, todayIso: IsoDate): Promise<v
   }
 
   await run(
-    `INSERT INTO organisation (id, name, short_name, motto, registration_no, sasra_licence_no, kra_pin,
-      society_type, physical_address, postal_address, city, county, country, phone_primary, phone_secondary,
+    `INSERT INTO organisation (id, name, short_name, motto, registration_no, licence_no, kra_pin,
+      school_type, physical_address, postal_address, city, county, country, phone_primary, phone_secondary,
       email, website, paybill_no, bank_name, bank_account_no, currency_code, currency_symbol, locale, timezone,
       date_format, fy_start_month, fy_start_day, statement_footer, receipt_approval_limit, petty_cash_limit, updated_at, updated_by)
      VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -396,7 +401,7 @@ async function seedReferenceData(now: IsoDateTime, todayIso: IsoDate): Promise<v
   );
   await run('INSERT INTO company (code, schema_name, display_name, is_default, created_at, created_by) VALUES (?,?,?,true,?,?)',
     'MAIN', 'public', 'Nairobi Green Valley Academy', now, 'system');
-  await run('INSERT INTO theme (id, preset, tokens, updated_at, updated_by) VALUES (1,?,?,?,?)', 'sacco-blue', JSON.stringify(PRESETS['sacco-blue']?.tokens ?? PRESETS['emerald-standard'].tokens), now, 'system');
+  await run('INSERT INTO theme (id, preset, tokens, updated_at, updated_by) VALUES (1,?,?,?,?)', 'school-blue', JSON.stringify(PRESETS['school-blue'].tokens), now, 'system');
 
   const INS_ACC = `INSERT INTO gl_account (code, name, type, parent_code, is_postable, account_type, totaling) VALUES (?,?,?,?,?,?,?)`;
   for (const [code, name, type, parent, postable, accountType, totaling] of CHART) {
@@ -444,20 +449,19 @@ async function seedReferenceData(now: IsoDateTime, todayIso: IsoDate): Promise<v
   const PROFILES: [string, string, string, string, number, 0 | 1][] = [
     ['SUPER', 'Super Role Centre', 'The whole school at a glance — academics and money.', '▤', 10, 1],
     ['SCHOOL_ADMIN', 'School Administration', 'Admissions, classes, registers, marks and report cards.', '🎓', 20, 0],
-    ['TEACHER', 'Teacher Portal', 'My classes, registers, marks and timetable.', '🧑‍🏫', 30, 0],
     ['STUDENT_PARENT', 'Student / Parent Portal', 'Timetable, grades, attendance, fees and announcements.', '🎒', 40, 0],
     ['FINANCE_MANAGER', 'Finance Manager Role Centre', 'Fee collection, the balance sheet, cost cover and approvals.', '📈', 50, 0],
     ['ACCOUNTANT', 'Accountant Role Centre', 'Journals, the trial balance, reconciliations and tax.', '📒', 60, 0],
     ['HR_PAYROLL', 'HR & Payroll Role Centre', 'Employee records, leave and payroll processing.', '🧑‍💼', 70, 0],
-    ['SELF_SERVICE', 'Employee Self Service', 'Your own payslips, P9, leave, imprests, petty cash and requisitions.', '🙋', 80, 0],
+    ['SELF_SERVICE', 'Employee Self Service', 'Your own payslips, P9, leave, imprests, petty cash and requisitions — and, for teaching staff, My Classes.', '🙋', 80, 0],
   ];
   for (const [code, name, description, icon, sort, isDefault] of PROFILES) await run(INS_PROFILE, code, name, description, code, icon, sort, isDefault, now);
   const profileId = async (code: string): Promise<number> => (await one<{ id: number }>('SELECT id FROM profile WHERE code = ?', code))!.id;
   const assign: Record<string, string[]> = {
-    admin: ['SUPER', 'SCHOOL_ADMIN', 'TEACHER', 'STUDENT_PARENT', 'FINANCE_MANAGER', 'ACCOUNTANT', 'HR_PAYROLL', 'SELF_SERVICE'],
+    admin: ['SUPER', 'SCHOOL_ADMIN', 'STUDENT_PARENT', 'FINANCE_MANAGER', 'ACCOUNTANT', 'HR_PAYROLL', 'SELF_SERVICE'],
     principal: ['SUPER', 'SCHOOL_ADMIN', 'FINANCE_MANAGER', 'HR_PAYROLL', 'SELF_SERVICE'],
     registrar: ['SCHOOL_ADMIN', 'SELF_SERVICE'],
-    teacher: ['TEACHER', 'SELF_SERVICE'],
+    teacher: ['SELF_SERVICE'],
     bursar: ['FINANCE_MANAGER', 'SCHOOL_ADMIN', 'SELF_SERVICE'],
     accountant: ['ACCOUNTANT', 'FINANCE_MANAGER', 'SELF_SERVICE'],
     hr: ['HR_PAYROLL', 'SELF_SERVICE'],
@@ -498,8 +502,8 @@ async function seedReferenceData(now: IsoDateTime, todayIso: IsoDate): Promise<v
   }
 
   /* ---------------------------------------------------------- finance setup */
-  const [a1010, a1020, a1030, a1040, a1210, a1215, a1250, a1260, a2050, a2055, a2150, _a4130, a4150, a4160, a4180, a4185, a4190, a5250, a5255, a5294, a5296, a1270, a4080] = await Promise.all(
-    ['1010', '1020', '1030', '1040', '1210', '1215', '1250', '1260', '2050', '2055', '2150', '4130', '4150', '4160', '4180', '4185', '4190', '5250', '5255', '5294', '5296', '1270', '4080'].map(acc),
+  const [a1010, a1020, a1030, a1040, a1210, a1215, a1250, a1260, a2050, a2055, a2150, _a4130, a4150, a4160, a4180, a4185, a4190, a5250, a5255, a5294, a5296, a1270, a4080, a4090] = await Promise.all(
+    ['1010', '1020', '1030', '1040', '1210', '1215', '1250', '1260', '2050', '2055', '2150', '4130', '4150', '4160', '4180', '4185', '4190', '5250', '5255', '5294', '5296', '1270', '4080', '4090'].map(acc),
   );
   const INS_BANK_ACCOUNT = 'INSERT INTO bank_account (code, name, gl_account_id, bank_name, account_no, account_type, currency_code, created_at) VALUES (?,?,?,?,?,?,?,?)';
   await run(INS_BANK_ACCOUNT, 'CASH', 'Petty Cash', a1010, null, null, 'PETTY_CASH', 'KES', now);
@@ -507,7 +511,7 @@ async function seedReferenceData(now: IsoDateTime, todayIso: IsoDate): Promise<v
   await run(INS_BANK_ACCOUNT, 'MPESA', 'M-Pesa Paybill 522533', a1030, 'Safaricom M-Pesa', '522533', 'OTHER', 'KES', now);
   await run(INS_BANK_ACCOUNT, 'SAVINGS', 'Bank Savings Account', a1040, 'Co-operative Bank of Kenya', '01129087654322', 'OTHER', 'KES', now);
   const bankId = async (code: string): Promise<number> => (await one<{ id: number }>('SELECT id FROM bank_account WHERE code = ?', code))!.id;
-  await run('UPDATE organisation SET mpesa_bank_account_id = ?, imprest_control_account_id = ?, bad_debt_recovery_account_id = ? WHERE id = 1', await bankId('MPESA'), a1215, a4190);
+  await run('UPDATE organisation SET mpesa_bank_account_id = ?, imprest_control_account_id = ?, bad_debt_recovery_account_id = ?, fee_discount_account_id = ? WHERE id = 1', await bankId('MPESA'), a1215, a4190, a4090);
   // Control accounts a manual journal may never touch.
   const noDirect = [a1010, a1020, a1030, a1040, a1210, a1215, a1250, a2150, a1270];
   await run(`UPDATE gl_account SET no_direct_posting = 1 WHERE id IN (${noDirect.map(() => '?').join(',')})`, ...noDirect);
@@ -706,15 +710,24 @@ async function seedCbcStructure(now: IsoDateTime): Promise<void> {
   for (const [i, [label, min, max, color]] of bands.entries()) {
     await run('INSERT INTO assessment_band (grading_scale_id, label, min_score, max_score, sort, color_hex) VALUES (?,?,?,?,?,?)', scale.lastInsertRowid, label, min, max, i + 1, color);
   }
+  const letters = await run('INSERT INTO grading_scale (name, is_default, education_level_id) VALUES (?, false, ?)', 'Letter Grades (A–E, 12–1 points)', levelIds.get('Junior Secondary') ?? null);
+  const letterBands: [string, number, number, number][] = [
+    ['A', 80, 100, 12], ['A-', 75, 79.99, 11], ['B+', 70, 74.99, 10], ['B', 65, 69.99, 9], ['B-', 60, 64.99, 8], ['C+', 55, 59.99, 7],
+    ['C', 50, 54.99, 6], ['C-', 45, 49.99, 5], ['D+', 40, 44.99, 4], ['D', 35, 39.99, 3], ['D-', 30, 34.99, 2], ['E', 0, 29.99, 1],
+  ];
+  for (const [i, [label, min, max, points]] of letterBands.entries()) {
+    await run('INSERT INTO assessment_band (grading_scale_id, label, min_score, max_score, sort, color_hex, points) VALUES (?,?,?,?,?,?,?)', letters.lastInsertRowid, label, min, max, i + 1, points >= 8 ? '#1a7f37' : points >= 5 ? '#1d6fb8' : '#c0392b', points);
+  }
   for (const [i, [name, weight, exam]] of ([['Formative Assessment 1', 1, false], ['Formative Assessment 2', 1, false], ['Mid-Term Assessment', 1.5, true], ['End of Term Exam', 2, true]] as const).entries()) {
     await run('INSERT INTO assessment_type (name, weight, is_exam, sort) VALUES (?,?,?,?)', name, weight, exam, i + 1);
   }
-  const feeItems: [string, string, string][] = [
-    ['TUITION', 'Tuition Fees', '4010'], ['BOARDING', 'Boarding Fees', '4020'], ['LUNCH', 'Lunch Programme', '4030'], ['TRANSPORT', 'School Transport', '4040'],
-    ['ACTIVITY', 'Activity and Co-curricular Fee', '4050'], ['EXAM', 'Examination and Assessment Fee', '4060'], ['ADMISSION', 'Admission Fee', '4070'], ['BOOKS', 'Books and Stationery', '4080'],
+  // Who each item is billed to: boarding to boarders, lunch to day scholars, transport to those who opt in.
+  const feeItems: [string, string, string, string][] = [
+    ['TUITION', 'Tuition Fees', '4010', 'ALL'], ['BOARDING', 'Boarding Fees', '4020', 'BOARDER'], ['LUNCH', 'Lunch Programme', '4030', 'DAY'], ['TRANSPORT', 'School Transport', '4040', 'OPT_IN'],
+    ['ACTIVITY', 'Activity and Co-curricular Fee', '4050', 'ALL'], ['EXAM', 'Examination and Assessment Fee', '4060', 'ALL'], ['ADMISSION', 'Admission Fee', '4070', 'OPT_IN'], ['BOOKS', 'Books and Stationery', '4080', 'ALL'],
   ];
-  for (const [i, [code, name, gl]] of feeItems.entries()) {
-    await run("INSERT INTO fee_item (code, name, gl_account_id, status, sort) VALUES (?,?,?,'ACTIVE',?)", code, name, await acc(gl), i + 1);
+  for (const [i, [code, name, gl, appliesTo]] of feeItems.entries()) {
+    await run("INSERT INTO fee_item (code, name, gl_account_id, status, sort, applies_to) VALUES (?,?,?,'ACTIVE',?,?)", code, name, await acc(gl), i + 1, appliesTo);
   }
   void now;
 }
@@ -903,8 +916,8 @@ async function seedDemoSchool(now: IsoDateTime, todayIso: IsoDate): Promise<Pick
     }
     if (s.login) {
       await run(
-        `INSERT INTO approval_user_setup (user_id, employee_id) VALUES (?,?)
-         ON CONFLICT (user_id) DO UPDATE SET employee_id = EXCLUDED.employee_id`, await userId(s.login), id,
+        `INSERT INTO approval_user_setup (user_id, employee_id, is_teacher) VALUES (?,?,?)
+         ON CONFLICT (user_id) DO UPDATE SET employee_id = EXCLUDED.employee_id, is_teacher = EXCLUDED.is_teacher`, await userId(s.login), id, s.teacher ? 1 : 0,
       );
     }
   }
@@ -960,8 +973,12 @@ async function seedDemoSchool(now: IsoDateTime, todayIso: IsoDate): Promise<Pick
         address: pick(['Kiambu Road', 'Thome', 'Runda', 'Roysambu', 'Garden Estate', 'Kahawa Sukari', 'Ridgeways', 'Muthaiga North']),
         countyId: nairobi, subCountyId: pick(subCounties).id, admissionDate: `${year}-01-06`, streamId: st.id,
         religion: pick(['Christian', 'Christian', 'Muslim', 'Hindu']),
+        boardingStatus: ['Upper Primary', 'Junior Secondary'].includes(gradeSort.education_level_name) && rnd() < 0.35 ? 'BOARDER' : 'DAY',
+        house: pick(['Kilimanjaro', 'Elgon', 'Kenya', 'Longonot']),
       }, guardians, SYS);
       studentIds.push({ id, streamId: st.id, gradeId: st.gradeId, admissionNo });
+      // A third of day scholars take the school bus.
+      if (rnd() < 0.33) await run("INSERT INTO student_fee_option (student_id, fee_item_id, note, created_at, created_by) SELECT ?, id, ?, ?, 'system' FROM fee_item WHERE code = 'TRANSPORT'", id, pick(['Route A — Kiambu Rd', 'Route B — Thika Rd', 'Route C — Ruaka']), now);
       // The demo parent and student logins are the first Grade 4 East family.
       if (!parentLoginGuardian && st.grade === 'Grade 4' && st.name === 'East') {
         const g = await students.listStudentGuardians(id);
@@ -1008,6 +1025,21 @@ async function seedDemoSchool(now: IsoDateTime, todayIso: IsoDate): Promise<Pick
 
   /* ---- registers for the term so far (last 15 school days) ---- */
   const registerDays = schoolDays(term.start_date, todayIso < term.end_date ? todayIso : term.end_date).slice(-15);
+  /* ---- electives: every Junior Secondary student takes one or two of the non-core subjects ---- */
+  const electiveRows: unknown[][] = [];
+  const electiveTaken = new Set<string>();
+  for (const st of streamIds) {
+    const electives = (await academics.listSubjectsForGrade(st.gradeId)).filter((sub) => !sub.is_core);
+    if (!electives.length) continue;
+    for (const s of studentIds.filter((x) => x.streamId === st.id)) {
+      const picks = electives.filter(() => rnd() < 0.55).slice(0, 2);
+      if (!picks.length) picks.push(electives[s.id % electives.length]);
+      for (const e of picks) { electiveRows.push([s.id, e.id, yearId, now, 'system']); electiveTaken.add(`${s.id}:${e.id}`); }
+    }
+  }
+  await insertMany('student_subject', ['student_id', 'subject_id', 'academic_year_id', 'created_at', 'created_by'], electiveRows);
+  trace(`electives (${electiveRows.length} rows)`);
+
   const registerRows: unknown[][] = [];
   for (const st of streamIds) {
     const roster = studentIds.filter((s) => s.streamId === st.id);
@@ -1024,7 +1056,7 @@ async function seedDemoSchool(now: IsoDateTime, todayIso: IsoDate): Promise<Pick
   /* ---- marks: the previous term complete and published; this term's first assessments in ---- */
   const types = await academics.listAssessmentTypes();
   const scale = await academics.getDefaultGradingScale();
-  const subjectsOfGrade = new Map<number, { id: number }[]>();
+  const subjectsOfGrade = new Map<number, { id: number; is_core: boolean }[]>();
   for (const st of streamIds) if (!subjectsOfGrade.has(st.gradeId)) subjectsOfGrade.set(st.gradeId, await academics.listSubjectsForGrade(st.gradeId));
   // Same rows assessments.enterMarks() would write (score, band label from the default scale), in one statement per term.
   const markTerm = async (termId: number, typeIds: number[]) => {
@@ -1034,6 +1066,8 @@ async function seedDemoSchool(now: IsoDateTime, todayIso: IsoDate): Promise<Pick
       for (const sub of subjectsOfGrade.get(st.gradeId) ?? []) {
         for (const typeId of typeIds) {
           for (const s of roster) {
+            // An elective is marked only for those who take it.
+            if (!sub.is_core && !electiveTaken.has(`${s.id}:${sub.id}`)) continue;
             const score = Math.min(100, Math.max(18, Math.round(62 + (rnd() + rnd() - 1) * 40)));
             const band = scale?.bands.find((b) => score >= b.min_score && score <= b.max_score);
             rows.push([s.id, sub.id, typeId, termId, yearId, score, band?.label ?? null, null, 'system', now]);
@@ -1062,7 +1096,10 @@ async function seedDemoSchool(now: IsoDateTime, todayIso: IsoDate): Promise<Pick
   const feeFor = (grade: string): [string, number][] => {
     const level = grades.find((g) => g.name === grade)!.education_level_name;
     const tuition = level === 'Pre-Primary' ? 18000 : level === 'Lower Primary' ? 24000 : level === 'Upper Primary' ? 28000 : 36000;
-    const rows: [string, number][] = [['TUITION', tuition], ['LUNCH', 9000], ['ACTIVITY', 2500], ['EXAM', level === 'Pre-Primary' ? 0 : 1500], ['BOOKS', level === 'Junior Secondary' ? 4500 : 3000]];
+    const rows: [string, number][] = [
+      ['TUITION', tuition], ['BOARDING', level === 'Pre-Primary' || level === 'Lower Primary' ? 0 : 21000], ['LUNCH', 9000], ['TRANSPORT', 12000],
+      ['ACTIVITY', 2500], ['EXAM', level === 'Pre-Primary' ? 0 : 1500], ['BOOKS', level === 'Junior Secondary' ? 4500 : 3000],
+    ];
     return rows.filter((r) => r[1] > 0);
   };
   for (const t of termRows) {
@@ -1077,6 +1114,15 @@ async function seedDemoSchool(now: IsoDateTime, todayIso: IsoDate): Promise<Pick
     if (r.failures.length) throw new Error(`Fee invoice run ${no}: ${r.failures.length} of ${r.posted + r.failures.length} students failed to post — first: ${r.failures[0].admission_no}: ${r.failures[0].error}`);
     return r;
   };
+  // Bursaries and sibling discounts: a handful of students, so the invoice runs show them.
+  const discounted = studentIds.filter((_, i) => i % 23 === 0).slice(0, 6);
+  for (const [i, s] of discounted.entries()) {
+    await run(
+      'INSERT INTO student_fee_discount (student_id, fee_item_id, percent, amount, description, from_term_id, to_term_id, status, created_at, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      s.id, i % 2 ? (await one<{ id: number }>("SELECT id FROM fee_item WHERE code = 'TUITION'"))!.id : null, i % 3 ? 25 : 0, i % 3 ? 0 : K(5000),
+      i % 2 ? 'Sibling discount' : 'Board of Management bursary', null, null, 'ACTIVE', now, 'system',
+    );
+  }
   if (previousTerm) await invoiceTerm(previousTerm);
   await invoiceTerm(term);
   trace('fee invoices');
@@ -1100,10 +1146,42 @@ async function seedDemoSchool(now: IsoDateTime, todayIso: IsoDate): Promise<Pick
       description: `Fees — ${balanceRow.name}`, receivedAmount: amount,
       lines: [{ accountNo: balanceRow.customer_no, description: 'School fees', amount }],
     }, bursar);
+    // A receipt at or above the approval limit is approved (by the principal, in the demo) before it posts — the same gate the cash office meets.
+    await run("UPDATE receipt_header SET status = 'Approved' WHERE no = ? AND amount >= approval_limit", no);
     await postReceipt(no, bursar);
   }
 
   trace('receipts');
+  /* ---- admissions pipeline: a few enquiries and applications ---- */
+  const APP_SEQ = await academics.listGradeLevels();
+  const appGrade = (name: string) => APP_SEQ.find((g) => g.name === name)?.id ?? APP_SEQ[0].id;
+  const applications: [string, string, string, string, string, string][] = [
+    ['Zawadi', 'Njoroge', 'Grade 1', 'ENQUIRY', 'Mercy Njoroge', '0722001001'], ['Ethan', 'Kamau', 'Grade 4', 'APPLIED', 'Anne Kamau', '0722001002'],
+    ['Amani', 'Odhiambo', 'Grade 7', 'OFFERED', 'Tom Odhiambo', '0722001003'], ['Neema', 'Wanjala', 'PP2', 'APPLIED', 'Grace Wanjala', '0722001004'],
+    ['Kevin', 'Mutiso', 'Grade 5', 'DECLINED', 'Paul Mutiso', '0722001005'],
+  ];
+  for (const [first, last, grade, status, gName, gPhone] of applications) {
+    await run(
+      `INSERT INTO admission_application (no, first_name, last_name, gender, date_of_birth, previous_school, grade_level_id, academic_year_id, boarding_status, guardian_name, guardian_phone, guardian_email, guardian_relationship, notes, status, applied_at, decided_at, created_by)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      await nextSequence('ADMISSION_APPLICATION'), first, last, rnd() < 0.5 ? 'FEMALE' : 'MALE', `${year - 6 - int(0, 6)}-0${int(1, 9)}-1${int(0, 9)}`, pick(['Sunshine Academy', 'Riverside Primary', 'St. Anne\'s', null]),
+      appGrade(grade), yearId, grade === 'Grade 7' ? 'BOARDER' : 'DAY', gName, gPhone, `${gName.split(' ')[0].toLowerCase()}@mail.co.ke`, 'Mother', status === 'OFFERED' ? 'Interview done; offer letter sent' : status === 'DECLINED' ? 'Family relocated' : null,
+      status, now, status === 'DECLINED' ? now : null, 'registrar',
+    );
+  }
+  /* ---- discipline / welfare log ---- */
+  const incidentRows: unknown[][] = [];
+  for (const [i, s] of studentIds.filter((_, k) => k % 17 === 3).slice(0, 8).entries()) {
+    const kind = (['DISCIPLINE', 'MEDICAL', 'EXEAT', 'NOTE'] as const)[i % 4];
+    const day = registerDays[Math.min(registerDays.length - 1, i * 2)] ?? todayIso;
+    incidentRows.push([s.id, kind, day,
+      kind === 'DISCIPLINE' ? 'Late for morning prep' : kind === 'MEDICAL' ? 'Sick bay — fever and headache' : kind === 'EXEAT' ? 'Weekend exeat — family function' : 'Counselling follow-up',
+      kind === 'MEDICAL' ? 'Temperature 38.2°C; paracetamol given; rested in sick bay' : null,
+      kind === 'DISCIPLINE' ? 'Guardian called; detention Friday' : kind === 'EXEAT' ? 'Signed out by guardian' : null,
+      kind === 'EXEAT' || kind === 'MEDICAL' ? todayIso : null, i % 3 === 0 ? 'CLOSED' : 'OPEN', 'registrar', now]);
+  }
+  await insertMany('student_incident', ['student_id', 'kind', 'date', 'title', 'details', 'action_taken', 'follow_up', 'status', 'recorded_by', 'recorded_at'], incidentRows);
+
   /* ---- announcements ---- */
   await createAnnouncement({ title: `Welcome back — ${term.name} ${year}`, body: `${term.name} runs from ${term.start_date} to ${term.end_date}. Fees are payable in full by the first day of term; pay via M-Pesa paybill 522533 using the admission number as the account.`, audience: 'ALL' }, SYS);
   await createAnnouncement({ title: 'Staff briefing every Monday, 7:30 am', body: 'All teaching staff to attend the weekly briefing in the staffroom. Class registers must be marked by 8:15 am.', audience: 'TEACHERS' }, SYS);
@@ -1117,7 +1195,7 @@ async function seedDemoSchool(now: IsoDateTime, todayIso: IsoDate): Promise<Pick
  * A small Fixed Assets demo — three assets (a bus, classroom furniture, a computer lab) with their
  * acquisition posted and a year of depreciation run, so every FA screen has data on first run.
  */
-async function seedFixedAssets(now: IsoDateTime, todayIso: IsoDate): Promise<void> {
+export async function seedFixedAssets(now: IsoDateTime, todayIso: IsoDate): Promise<void> {
   const bankId = await acc('1020');
   const startDate = addMonths(todayIso, -14).slice(0, 10);
   const firstOfThisMonth = `${todayIso.slice(0, 8)}01`;
@@ -1151,7 +1229,7 @@ async function seedFixedAssets(now: IsoDateTime, todayIso: IsoDate): Promise<voi
 }
 
 /** A small Payables demo — three suppliers and a few posted purchase invoices, so Payables and Aged AP have data. */
-async function seedPayables(now: IsoDateTime, todayIso: IsoDate): Promise<void> {
+export async function seedPayables(now: IsoDateTime, todayIso: IsoDate): Promise<void> {
   const demo: { input: Parameters<typeof vendorLib.createVendor>[0] }[] = [
     { input: { name: 'Nairobi City Water & Sewerage Co.', city: 'Nairobi', phone: '+254 20 555 1234', email: 'billing@nairobiwater.co.ke', contact: 'Billing Desk', vendorPostingGroupCode: 'UTILITY', paymentTermsCode: '14 DAYS', creditLimit: 0, blocked: '' } },
     { input: { name: 'Text Book Centre Ltd', city: 'Nairobi', phone: '+254 722 998 877', email: 'schools@tbc.co.ke', contact: 'Anne Cheruiyot', vendorPostingGroupCode: 'TRADE', paymentTermsCode: '30 DAYS', creditLimit: K(2000000), blocked: '' } },
@@ -1177,4 +1255,211 @@ async function seedPayables(now: IsoDateTime, todayIso: IsoDate): Promise<void> 
   await postInvoice(vendorIds[1], addMonths(todayIso, -2).slice(0, 10), '5110', 'Grade 7–9 course books', K(384000), 'TBC-2026-1041');
   await postInvoice(vendorIds[2], oneMonthAgo, '5210', 'Kitchen supplies — last month', K(212000), 'FHF-5521');
   void now;
+}
+
+
+/* ================================================================== school services */
+
+/**
+ * Transport, hostel and library for the demonstration school. Runs after the fixed assets (the
+ * bus is one) and the students (the riders and boarders). Idempotent — a database that already
+ * has a bus, a hostel or a library title is left alone, so scripts/patch-demo.ts can call it on
+ * a school seeded before these modules existed.
+ */
+export async function seedSchoolServices(now: IsoDateTime, todayIso: IsoDate): Promise<void> {
+  const transport = await import('./transport.ts');
+  const hostel = await import('./hostel.ts');
+  const library = await import('./library.ts');
+  const addDays = (iso: IsoDate, n: number): IsoDate => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const year = Number(todayIso.slice(0, 4));
+
+  // The number series these modules draw on — present on a fresh seed, added here for a school seeded before them.
+  for (const [code, label, prefix] of [['WORK_TICKET', 'Bus Work Ticket No.', 'WT'], ['LIBRARY_BOOK', 'Library Accession No.', 'ACC']] as const) {
+    if (await hasAnyRow('no_series', 'code = ?', code)) continue;
+    await run('INSERT INTO sequence (name, prefix, next_no, width) VALUES (?,?,1,5) ON CONFLICT (name) DO NOTHING', code, prefix);
+    await run('INSERT INTO no_series (code, description, default_nos, manual_nos, date_order) VALUES (?,?,1,0,0) ON CONFLICT (code) DO NOTHING', code, label);
+    await run('INSERT INTO no_series_line (series_code, line_no, starting_date, starting_no, increment_by_no, open, allow_gaps) VALUES (?, 10000, NULL, ?, 1, 1, 0)', code, `${prefix}00001`);
+    await run('INSERT INTO no_series_setup (document_code, label, category, sort, series_code) VALUES (?,?,?,?,?) ON CONFLICT (document_code) DO NOTHING', code, label, 'Academics', NO_SERIES_DOCUMENTS.findIndex((d) => d.code === code), code);
+  }
+
+  const employeeByName = async (first: string, last: string) => (await one<{ id: number }>('SELECT id FROM employee WHERE first_name = ? AND last_name = ?', first, last))?.id ?? null;
+
+  /* ---- transport ---- */
+  if (!(await hasAnyRow('school_bus', '1=1'))) {
+    // A second bus in the register, so the fleet has two vehicles to compare.
+    if (!(await hasAnyRow('fixed_asset', "asset_tag = 'MV-0002'"))) {
+      const bankId = await acc('1020');
+      const startDate = addMonths(todayIso, -8).slice(0, 10);
+      const { no } = await faLib.createFixedAsset({ description: 'Nissan Civilian 26-seater School Bus', faClassCode: 'VEHICLES', faSubclassCode: 'BUS', faLocationCode: 'MAIN', responsibleEmployee: 'Daniel Mwangi', vendorName: 'Toyota Kenya', assetTag: 'MV-0002', serialNo: 'JN1FCPAW1Z0011223', blocked: false, inactive: false }, SYS);
+      const asset = (await one<{ id: number }>('SELECT id FROM fixed_asset WHERE no = ?', no))!;
+      await faLib.setFaDepreciationBook(asset.id, { depreciationBookCode: 'SCHOOL', faPostingGroupCode: 'VEHICLES', depreciationMethod: 'Straight-Line', depreciationStartingDate: startDate, depreciationEndingDate: null, noOfDepreciationYears: 8, straightLinePct: 0, decliningBalancePct: 0, salvageValue: K(900000), disposalCalculationMethod: 'Net' }, SYS);
+      const lineNo = await nextSequence('FA_JOURNAL');
+      await run(`INSERT INTO fa_journal_line (no, posting_date, fixed_asset_id, depreciation_book_code, fa_posting_type, amount, balancing_gl_account_id, description, status, created_at, created_by) VALUES (?,?,?,?,'Acquisition Cost',?,?,?, 'Approved', ?, 'system')`,
+        lineNo, startDate, asset.id, 'SCHOOL', K(5200000), bankId, 'Second bus — acquisition', now);
+      await faJournalLib.postFaJournalLine(lineNo, SYS);
+    }
+    const vehicles = await all<{ no: string; asset_tag: string | null }>("SELECT no, asset_tag FROM fixed_asset WHERE fa_class_code = 'VEHICLES' ORDER BY asset_tag");
+    const faNo = (tag: string) => vehicles.find((v) => v.asset_tag === tag)?.no ?? vehicles[0]?.no;
+
+    // Drivers are employees first — Joseph is on the payroll already; Daniel joins the transport office.
+    let joseph = await employeeByName('Joseph', 'Wekesa');
+    let daniel = await employeeByName('Daniel', 'Mwangi');
+    const idOf = async (sql: string) => (await one<{ id: number }>(sql))?.id ?? null;
+    const hire = async (first: string, last: string, title: string, pay: number) => {
+      const { id } = await employees.createEmployee({
+        first_name: first, last_name: last, gender: 'MALE', job_title: title, job_grade_id: await idOf("SELECT id FROM hr_job_grade WHERE code = 'S2'"),
+        contract_type_id: await idOf("SELECT id FROM hr_employment_contract_type WHERE code = 'PERM'"), employment_date: `${year - 2}-03-01`, employee_type: 'STAFF',
+        email: `${first.toLowerCase()}.${last.toLowerCase()}@greenvalley.ac.ke`, phone: `+2547${int(10000000, 99999999)}`,
+        national_id: String(int(20000000, 39999999)), kra_pin: `A00${int(1000000, 9999999)}X`, nssf_no: String(int(100000000, 999999999)), shif_no: String(int(1000000, 9999999)),
+        global_dimension_1_id: await idOf("SELECT id FROM global_dimension_1_value WHERE code = 'TRANS'"), global_dimension_2_id: await idOf("SELECT id FROM global_dimension_2_value WHERE code = 'HQ'"),
+        posting_group_id: await idOf("SELECT id FROM payroll_posting_group WHERE code = 'SUPPORT'"), basic_pay_cents: K(pay), payment_mode: 'Bank Transfer',
+        bank_code: 'COOP', bank_branch: '11026', bank_account_no: String(int(1000000000, 9999999999)),
+      }, SYS);
+      await run("UPDATE employee SET status = 'ACTIVE', probation_status = 'CONFIRMED' WHERE id = ?", id);
+      return id;
+    };
+    joseph ??= await hire('Joseph', 'Wekesa', 'School Driver', 42000);
+    daniel ??= await hire('Daniel', 'Mwangi', 'School Driver', 40000);
+    await transport.saveDriver({ employeeId: joseph, licenceNo: 'DL-4471902', licenceClass: 'BCE / D1', licenceExpiry: addDays(todayIso, 400), psvBadgeNo: 'PSV-88213', psvExpiry: addDays(todayIso, 250), notes: 'Defensive driving certificate 2024' }, SYS);
+    // Daniel's PSV badge is a few weeks from expiry — the transport page shows the warning.
+    await transport.saveDriver({ employeeId: daniel, licenceNo: 'DL-5120377', licenceClass: 'BCE', licenceExpiry: addDays(todayIso, 700), psvBadgeNo: 'PSV-90455', psvExpiry: addDays(todayIso, 21) }, SYS);
+
+    const routeDefs: { code: string; name: string; description: string; stops: [string, string, string][] }[] = [
+      { code: 'A', name: 'Kiambu Road', description: 'Runda, Ridgeways, Kiambu Road to the school gate', stops: [['Runda Gate', '06:10', '16:40'], ['Ridgeways Mall', '06:25', '16:25'], ['Ciata Mall', '06:40', '16:10'], ['Kiambu Road Junction', '06:50', '16:00']] },
+      { code: 'B', name: 'Thika Road', description: 'Kahawa, Roysambu, TRM and Garden City', stops: [['Kahawa Sukari', '06:00', '16:50'], ['Roysambu', '06:15', '16:35'], ['TRM', '06:25', '16:25'], ['Garden City', '06:35', '16:15']] },
+      { code: 'C', name: 'Ruaka', description: 'Ruaka, Ndenderu and Banana', stops: [['Banana Hill', '06:05', '16:45'], ['Ndenderu', '06:20', '16:30'], ['Ruaka Two Rivers', '06:35', '16:15']] },
+    ];
+    const routeIds = new Map<string, number>();
+    for (const r of routeDefs) {
+      const { id } = await transport.saveRoute(null, { code: r.code, name: r.name, description: r.description, termFare: 0 }, SYS);
+      await transport.saveStops(id, r.stops.map(([name, pickupTime, dropoffTime]) => ({ name, pickupTime, dropoffTime })), SYS);
+      routeIds.set(r.code, id);
+    }
+
+    const { id: bus1 } = await transport.saveBus(null, { fixedAssetNo: faNo('MV-0001'), registrationNo: 'KCD 123A', makeModel: 'Toyota Coaster', capacity: 29, driverEmployeeId: joseph, routeId: routeIds.get('A')!, status: 'ACTIVE', insuranceExpiry: addDays(todayIso, 160), inspectionExpiry: addDays(todayIso, 90), odometer: 148_320 }, SYS);
+    const { id: bus2 } = await transport.saveBus(null, { fixedAssetNo: faNo('MV-0002'), registrationNo: 'KDA 456B', makeModel: 'Nissan Civilian', capacity: 26, driverEmployeeId: daniel, routeId: routeIds.get('B')!, status: 'ACTIVE', insuranceExpiry: addDays(todayIso, 12), inspectionExpiry: addDays(todayIso, 200), odometer: 61_780 }, SYS);
+
+    // Riders: every student who opted into the Transport fee item is put on the route their note names.
+    const riders = await all<{ student_id: number; note: string | null }>("SELECT o.student_id, o.note FROM student_fee_option o JOIN fee_item f ON f.id = o.fee_item_id JOIN student s ON s.id = o.student_id WHERE f.code = 'TRANSPORT' AND s.status = 'ACTIVE'");
+    const stopsByRoute = new Map<number, number[]>();
+    for (const s of await all<{ id: number; route_id: number }>('SELECT id, route_id FROM transport_stop')) stopsByRoute.set(s.route_id, [...(stopsByRoute.get(s.route_id) ?? []), s.id]);
+    const riderRows: unknown[][] = [];
+    for (const r of riders) {
+      const code = r.note?.match(/Route ([ABC])/)?.[1] ?? pick(['A', 'B', 'C']);
+      const routeId = routeIds.get(code)!;
+      riderRows.push([r.student_id, routeId, pick(stopsByRoute.get(routeId) ?? [null]), rnd() < 0.85 ? 'BOTH' : pick(['MORNING', 'EVENING']), null, now, 'system']);
+    }
+    await insertMany('student_transport', ['student_id', 'route_id', 'stop_id', 'direction', 'note', 'created_at', 'created_by'], riderRows);
+
+    // Work tickets: a closed route run per bus on each of the last ten school days, and today's still open.
+    let odo1 = 147_000, odo2 = 60_900;
+    const rows: unknown[][] = [];
+    const days: IsoDate[] = [];
+    for (let d = 14; d >= 1 && days.length < 10; d--) { const iso = addDays(todayIso, -d); const dow = new Date(`${iso}T00:00:00Z`).getUTCDay(); if (dow !== 0 && dow !== 6) days.push(iso); }
+    days.reverse();
+    const nos = await nextSequenceBatch('WORK_TICKET', days.length * 2 + 3);
+    let n = 0;
+    for (const day of days) {
+      for (const [busId, driverId, routeCode, km] of [[bus1, joseph, 'A', int(58, 72)], [bus2, daniel, 'B', int(64, 80)]] as [number, number, string, number][]) {
+        const odo = busId === bus1 ? odo1 : odo2;
+        const litres = Math.round((km / (routeCode === 'A' ? 4.6 : 5.4)) * 10) / 10;
+        rows.push([nos[n++], busId, driverId, routeIds.get(routeCode)!, day, 'ROUTE_RUN', null, odo, odo + km, litres, K(Math.round(litres * 178)), 'CLOSED', null, 'transport', `${day}T05:40:00.000Z`, `${day}T14:30:00.000Z`]);
+        if (busId === bus1) odo1 += km; else odo2 += km;
+      }
+    }
+    // A trip, a workshop visit, and today's run out on the road.
+    rows.push([nos[n++], bus2, daniel, null, days[Math.floor(days.length / 2)], 'TRIP', 'Nairobi National Museum — Grade 6 excursion', odo2, odo2 + 46, 9.5, K(1691), 'CLOSED', 'Grade 6 excursion, 24 students and 2 teachers', 'transport', now, now]); odo2 += 46;
+    rows.push([nos[n++], bus1, joseph, null, days[days.length - 2], 'MAINTENANCE', 'Toyota Kenya service centre, Uhuru Highway', odo1, odo1 + 18, 0, 0, 'CLOSED', '10,000 km service; brake pads replaced', 'transport', now, now]); odo1 += 18;
+    rows.push([nos[n++], bus1, joseph, routeIds.get('A')!, todayIso, 'ROUTE_RUN', null, odo1, null, 0, 0, 'OPEN', null, 'transport', now, null]);
+    await insertMany('bus_work_ticket', ['no', 'bus_id', 'driver_employee_id', 'route_id', 'date', 'purpose', 'destination', 'odometer_start', 'odometer_end', 'fuel_litres', 'fuel_cost', 'status', 'remarks', 'authorised_by', 'created_at', 'closed_at'], rows);
+    await run('UPDATE school_bus SET odometer = ? WHERE id = ?', odo1, bus1);
+    await run('UPDATE school_bus SET odometer = ? WHERE id = ?', odo2, bus2);
+    trace('transport');
+  }
+
+  /* ---- hostel ---- */
+  if (!(await hasAnyRow('hostel', '1=1'))) {
+    const houses: [string, string, 'MALE' | 'FEMALE', number | null][] = [
+      ['KIL', 'Kilimanjaro House', 'MALE', await employeeByName('Kevin', 'Mutua')], ['KEN', 'Kenya House', 'MALE', await employeeByName('Samuel', 'Kiptoo')],
+      ['ELG', 'Elgon House', 'FEMALE', await employeeByName('Mary', 'Achieng')], ['LON', 'Longonot House', 'FEMALE', await employeeByName('Joyce', 'Wambui')],
+    ];
+    const boarders = await all<{ id: number; gender: string | null; house: string | null }>("SELECT id, gender, house FROM student WHERE status = 'ACTIVE' AND boarding_status = 'BOARDER' ORDER BY id");
+    const yearId = (await one<{ id: number }>('SELECT id FROM academic_year WHERE is_current'))?.id ?? (await one<{ id: number }>('SELECT id FROM academic_year ORDER BY start_date DESC LIMIT 1'))!.id;
+    const allocations: unknown[][] = [];
+    const placed = new Set<number>();
+    for (const [code, name, gender, wardenId] of houses) {
+      const { id: hostelId } = await hostel.saveHostel(null, { code, name, gender, wardenEmployeeId: wardenId, notes: `${gender === 'MALE' ? 'Boys’' : 'Girls’'} house` }, SYS);
+      // A boarder goes to the house on their card when it takes their gender; otherwise the first house that does.
+      const short = name.replace(' House', '');
+      const mine = boarders.filter((b) => b.gender === gender && !placed.has(b.id) && (b.house === short || !houses.some((h) => h[2] === gender && h[1].replace(' House', '') === b.house)));
+      const roomCount = Math.max(2, Math.ceil((mine.length + 4) / 8));
+      const bedIds: number[] = [];
+      for (let r = 1; r <= roomCount; r++) {
+        const { id: roomId } = await hostel.saveRoom(hostelId, { name: `Room ${r}`, floor: r <= Math.ceil(roomCount / 2) ? 'Ground' : 'First', beds: 8 }, SYS);
+        for (const b of await all<{ id: number }>('SELECT id FROM hostel_bed WHERE room_id = ? ORDER BY label::int', roomId)) bedIds.push(b.id);
+      }
+      // One bed in each house is out for repair; the rest fill in order, leaving a few spare and one boarder waiting.
+      await run("UPDATE hostel_bed SET status = 'OUT_OF_SERVICE' WHERE id = ?", bedIds[bedIds.length - 1]);
+      let i = 0;
+      for (const s of mine) {
+        if (i >= bedIds.length - 1 || i >= mine.length - 1) break;
+        allocations.push([bedIds[i++], s.id, yearId, `${year}-01-06`, null, 'ACTIVE', 'system', now]);
+        placed.add(s.id);
+      }
+    }
+    await insertMany('bed_allocation', ['bed_id', 'student_id', 'academic_year_id', 'from_date', 'to_date', 'status', 'created_by', 'created_at'], allocations);
+    trace('hostel');
+  }
+
+  /* ---- library ---- */
+  if (!(await hasAnyRow('library_book', '1=1'))) {
+    const finesAcc = await one<{ id: number }>("SELECT id FROM gl_account WHERE code = '4150'");
+    await library.saveLibrarySetup({ loanDays: 14, finePerDay: K(10), maxLoansStudent: 2, maxLoansStaff: 5, fineGlAccountId: finesAcc?.id ?? null }, SYS);
+    const PUBLISHERS = ['Kenya Literature Bureau', 'Spotlight Publishers', 'Oxford University Press EA', 'Longhorn Publishers', 'Moran Publishers', 'KLB', 'TUKI', 'Macmillan Kenya', 'Oxford University Press'];
+    const titles: [string, string, string, string, number, string, number][] = [
+      ['KLB Mathematics Grade 7', 'Kenya Literature Bureau', 'Mathematics', '9789966100001', 2023, 'Shelf A1', 6],
+      ['Spotlight Integrated Science Grade 8', 'Spotlight Publishers', 'Science', '9789966100002', 2023, 'Shelf A2', 5],
+      ['Oxford English Grade 5', 'Oxford University Press EA', 'Languages', '9789966100003', 2022, 'Shelf B1', 6],
+      ['Kiswahili Mufti Gredi ya 6', 'Longhorn Publishers', 'Languages', '9789966100004', 2022, 'Shelf B2', 4],
+      ['Our Lives Today Social Studies Grade 6', 'Oxford University Press EA', 'Humanities', '9789966100005', 2021, 'Shelf B3', 4],
+      ['Pre-Technical Studies Grade 9', 'Moran Publishers', 'Technical', '9789966100006', 2024, 'Shelf C1', 3],
+      ['The River and the Source', 'Margaret Ogola', 'Fiction', '9789966465104', 1994, 'Shelf D1', 5],
+      ['Weep Not, Child', 'Ngũgĩ wa Thiong’o', 'Fiction', '9780143106692', 1964, 'Shelf D1', 4],
+      ['Things Fall Apart', 'Chinua Achebe', 'Fiction', '9780385474542', 1958, 'Shelf D2', 4],
+      ['Diary of a Wimpy Kid', 'Jeff Kinney', 'Fiction', '9780810993136', 2007, 'Shelf D3', 6],
+      ['Harry Potter and the Philosopher’s Stone', 'J. K. Rowling', 'Fiction', '9780747532699', 1997, 'Shelf D3', 5],
+      ['Matilda', 'Roald Dahl', 'Fiction', '9780142410370', 1988, 'Shelf D4', 4],
+      ['Oxford Advanced Learner’s Dictionary', 'Oxford University Press', 'Reference', '9780194798792', 2020, 'Reference desk', 3],
+      ['Kamusi ya Kiswahili Sanifu', 'TUKI', 'Reference', '9789966100007', 2013, 'Reference desk', 2],
+      ['Atlas of Kenya and the World', 'Macmillan Kenya', 'Reference', '9789966100008', 2019, 'Reference desk', 2],
+      ['Longhorn CRE Grade 7', 'Longhorn Publishers', 'Religious Education', '9789966100009', 2023, 'Shelf C2', 3],
+      ['Agriculture and Nutrition Grade 8', 'KLB', 'Agriculture', '9789966100010', 2023, 'Shelf C3', 3],
+      ['Computer Studies Made Simple', 'Moran Publishers', 'ICT', '9789966100011', 2021, 'Shelf C4', 3],
+    ];
+    const copies: string[] = [];
+    for (const [title, author, category, isbn, yr, location, n] of titles) {
+      const publisher = PUBLISHERS.includes(author) ? author : null;
+      const { id } = await library.saveBook(null, { title, author: publisher ? null : author, publisher, category, isbn, year: yr, location }, SYS);
+      const { added } = await library.addCopies(id, n, SYS, pick(['NEW', 'GOOD', 'GOOD', 'FAIR']));
+      copies.push(...added);
+    }
+    // Loans: a spread of returned, out and overdue — one late return with a fine still to charge, one lost copy.
+    const readers = await all<{ id: number }>("SELECT s.id FROM student s JOIN grade_level g ON g.id = s.current_grade_level_id WHERE s.status = 'ACTIVE' AND g.sort >= 4 ORDER BY s.id LIMIT 40");
+    const staff = await all<{ id: number }>("SELECT id FROM employee WHERE status = 'ACTIVE' AND employee_type = 'TEACHER' ORDER BY id LIMIT 6");
+    const copyIds = new Map((await all<{ id: number; accession_no: string }>('SELECT id, accession_no FROM library_copy')).map((c) => [c.accession_no, c.id]));
+    const loans: unknown[][] = [];
+    const onLoan: number[] = [];
+    let ci = 0;
+    const take = () => copyIds.get(copies[ci++ % copies.length])!;
+    const reader = (i: number) => readers[i % readers.length].id;
+    for (let i = 0; i < 24; i++) { const issued = addDays(todayIso, -int(20, 90)); const due = addDays(issued, 14); loans.push([take(), reader(i), null, issued, due, addDays(due, -int(0, 6)), 'RETURNED', 0, null, 'librarian', 'librarian', null]); }
+    for (let i = 0; i < 3; i++) { const issued = addDays(todayIso, -int(30, 60)); const due = addDays(issued, 14); const late = int(3, 9); loans.push([take(), reader(24 + i), null, issued, due, addDays(due, late), 'RETURNED', K(10 * late), null, 'librarian', 'librarian', 'Returned late']); }
+    for (let i = 0; i < 10; i++) { const c = take(); onLoan.push(c); const issued = addDays(todayIso, -int(1, 10)); loans.push([c, reader(27 + i), null, issued, addDays(issued, 14), null, 'ON_LOAN', 0, null, 'librarian', null, null]); }
+    for (let i = 0; i < 3; i++) { const c = take(); onLoan.push(c); const issued = addDays(todayIso, -int(20, 30)); loans.push([c, reader(37 + i), null, issued, addDays(issued, 14), null, 'ON_LOAN', 0, null, 'librarian', null, null]); }
+    for (let i = 0; i < 3 && staff.length; i++) { const c = take(); onLoan.push(c); const issued = addDays(todayIso, -int(2, 12)); loans.push([c, null, staff[i % staff.length].id, issued, addDays(issued, 14), null, 'ON_LOAN', 0, null, 'librarian', null, null]); }
+    { const c = take(); const issued = addDays(todayIso, -75); loans.push([c, reader(5), null, issued, addDays(issued, 14), addDays(issued, 40), 'LOST', K(260), null, 'librarian', 'librarian', 'Reported lost — replacement cost']); await run("UPDATE library_copy SET status = 'LOST' WHERE id = ?", c); }
+    await insertMany('library_loan', ['copy_id', 'student_id', 'employee_id', 'issued_on', 'due_on', 'returned_on', 'status', 'fine_amount', 'fine_invoice_no', 'issued_by', 'returned_by', 'remarks'], loans);
+    await run(`UPDATE library_copy SET status = 'ON_LOAN' WHERE id IN (${onLoan.map(() => '?').join(',')})`, ...onLoan);
+    trace('library');
+  }
 }

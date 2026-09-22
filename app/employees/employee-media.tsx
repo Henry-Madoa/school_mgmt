@@ -10,7 +10,7 @@ import type { UploadedFile } from '@/lib/types';
 
 /**
  * The Employee Card's identity strip — passport photo and specimen signature, side by side.
- * Same upload-immediately pattern as the member 360 photo and the User Setup signature: the
+ * Same upload-immediately pattern as the student 360 photo and the User Setup signature: the
  * image goes to Cloudinary the moment it is chosen and the record it belongs to already exists,
  * so there is no form to save. Like the rest of the card, the slots are editable only while the
  * record is New — the server refuses otherwise (lib/employees.ts setEmployeeImage). Given

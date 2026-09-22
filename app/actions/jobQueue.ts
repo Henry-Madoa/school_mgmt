@@ -58,8 +58,6 @@ export async function runJobQueueEntryNowRequest(id: number): Promise<ActionResu
     const user = await requireAction('ADMIN_JOB_QUEUE_MANAGE');
     await runJobQueueEntryNow(id, user);
     revalidatePath('/admin/automation');
-    revalidatePath('/members');
-    revalidatePath('/savings');
     return { ran: true };
   });
 }

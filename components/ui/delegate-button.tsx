@@ -17,7 +17,7 @@ const VIA_LABEL: Record<DelegateTarget['via'], string> = {
  * and then to an Approval Administrator (lib/workflow.ts's resolveDelegateTarget()).
  *
  * One component for every document type — the confirmation and the outcome should read the same
- * whether you are delegating a loan, a sales invoice or an account opening. The delegate is named
+ * whether you are delegating a payment voucher, a sales invoice or a leave application. The delegate is named
  * in the result rather than the prompt, because who it resolves to depends on User Setup the
  * browser has no business guessing at.
  */

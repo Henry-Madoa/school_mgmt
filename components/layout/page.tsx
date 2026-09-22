@@ -18,7 +18,7 @@ export interface PageProps {
  * The top bar plus the content well.
  *
  * Every route renders its own <Page>, which is what lets the heading carry
- * route-specific detail (a member's name, a loan number) without the shell
+ * route-specific detail (a student's name, an invoice number) without the shell
  * having to know about routes — the old app poked at #page-title imperatively.
  */
 export function Page({ title, crumb, user, children }: PageProps) {

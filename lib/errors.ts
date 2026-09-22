@@ -52,7 +52,7 @@ function sqlState(err: unknown): string | null {
   return null;
 }
 
-/** The constraint name quoted in a PostgreSQL message, e.g. `"member_identification_no_key"`. */
+/** The constraint name quoted in a PostgreSQL message, e.g. `"student_admission_no_key"`. */
 const constraintOf = (err: unknown): string | null =>
   /constraint "([^"]+)"/.exec(String((err as Error)?.message ?? ''))?.[1] ?? null;
 
@@ -60,7 +60,7 @@ const constraintOf = (err: unknown): string | null =>
  * A database failure reworded for the person at the screen. Integrity errors are business
  * facts (that number is taken; that record is still referenced) and are returned as such;
  * anything else — a syntax slip, a lost connection, a timeout — is a system fault whose driver
- * text belongs in the server log, not on a teller's screen.
+ * text belongs in the server log, not on a user's screen.
  */
 export function translateDbError(err: unknown): AppError | null {
   const state = sqlState(err);

@@ -7,7 +7,8 @@ import { formatDate, formatDateTime } from '@/lib/format';
 import { Page } from '@/components/layout/page';
 import { Card, CardHead, DefinitionList, EmptyState, Pill, TableWrap, Toolbar, Spacer } from '@/components/ui/primitives';
 import { Money } from '@/components/ui/money';
-import { GuardianFormButton, DeleteGuardianButton } from '../guardian-form';
+import { EditableCard } from '@/components/ui/editable-card';
+import { GuardianEditForm, DeleteGuardianButton } from '../guardian-form';
 
 export default async function GuardianPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireAction('GUARDIANS_READ');
@@ -22,11 +23,10 @@ export default async function GuardianPage({ params }: { params: Promise<{ id: s
       <Toolbar>
         <Link href="/guardians" className="btn ghost sm">← All guardians</Link>
         <Spacer />
-        {canManage ? <GuardianFormButton guardian={guardian} className="btn ghost">Edit</GuardianFormButton> : null}
+        {students.length ? <Link href={`/print/family-statement/${id}`} className="btn ghost" target="_blank">Family fee statement</Link> : null}
         {canManage && !students.length ? <DeleteGuardianButton id={id} /> : null}
       </Toolbar>
-      <Card>
-        <CardHead title="Contact" sub="Receipts and fee reminders go to the phone and email of the student's primary guardian" />
+      <EditableCard title="Contact" sub="Receipts and fee reminders go to the phone and email of the student's primary guardian" canEdit={canManage} form={<GuardianEditForm guardian={guardian} />}>
         <div className="grid g2 dl-groups">
           <section className="dl-group">
             <DefinitionList items={[
@@ -42,7 +42,7 @@ export default async function GuardianPage({ params }: { params: Promise<{ id: s
             ]} />
           </section>
         </div>
-      </Card>
+      </EditableCard>
       <Card>
         <CardHead title="Students" sub={`${students.length} student${students.length === 1 ? '' : 's'} under this guardian`} />
         {students.length ? (

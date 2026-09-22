@@ -4,7 +4,8 @@ import { listGradeLevels, listStreams, getCurrentAcademicYear } from '@/lib/acad
 import { Page } from '@/components/layout/page';
 import { Card, CardHead, Toolbar, Spacer } from '@/components/ui/primitives';
 import { AnnouncementList } from '@/components/school/announcement-list';
-import { AnnouncementFormButton, DeleteAnnouncementButton } from './announcement-form';
+import { AnnouncementFormButton } from './announcement-form';
+import { NoticeBoard } from './notice-board';
 
 export default async function AnnouncementsPage() {
   const user = await requireAction('ANNOUNCEMENTS_READ');
@@ -20,12 +21,7 @@ export default async function AnnouncementsPage() {
       </Toolbar>
       <Card>
         <CardHead title="Notice board" sub={canManage ? `${rows.length} announcement${rows.length === 1 ? '' : 's'} on file` : 'What is addressed to staff'} />
-        <AnnouncementList rows={rows} actions={canManage ? (a) => (
-          <>
-            <AnnouncementFormButton announcement={a} grades={grades} streams={streams} className="btn sm ghost">Edit</AnnouncementFormButton>
-            <DeleteAnnouncementButton id={a.id} />
-          </>
-        ) : undefined} />
+        {canManage ? <NoticeBoard rows={rows} grades={grades} streams={streams} canManage /> : <AnnouncementList rows={rows} />}
       </Card>
     </Page>
   );

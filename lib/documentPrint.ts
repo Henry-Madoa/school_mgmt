@@ -64,7 +64,7 @@ export interface PrintColumn {
   align?: 'left' | 'right' | 'center';
   width?: string;
   /** 'signature' prints the cell value as an image URL — a scanned signature where one is on
-   *  file, otherwise the ruled line it replaces (the guarantor column on a loan application). */
+   *  file, otherwise the ruled line it replaces. */
   kind?: 'text' | 'signature';
 }
 
@@ -112,7 +112,7 @@ export interface PrintAcknowledgement {
 
 /**
  * A further table under the main one, with its own heading — a document that states several
- * ledgers rather than one list of lines (the Member Statement's per-account and per-loan
+ * ledgers rather than one list of lines (the Family Statement's per-student
  * activity). An invoice has no sections; it is all one table.
  */
 export interface PrintSection {
@@ -156,12 +156,12 @@ export interface PrintDocument {
   /**
    * The approval trail, printed as the ruled "Approval Details" table — a row per role with
    * Name, Date & Time and Signature. This is for documents that people actually cleared; a
-   * payslip or a loan form wants the plain strip below instead.
+   * payslip or a report card wants the plain strip below instead.
    */
   approvals?: PrintSignature[];
   /** The panel under the approval table where the recipient signs for what they got. */
   acknowledgement?: PrintAcknowledgement | null;
-  /** Side-by-side ruled signature blocks — statements, payslips, loan agreements. */
+  /** Side-by-side ruled signature blocks — statements, payslips, certificates. */
   signatures?: PrintSignature[];
   footnote?: string | null;
   /**
@@ -228,7 +228,7 @@ export function documentMoney(brand: PrintBrand, code: string | null | undefined
 }
 
 /**
- * Who signs the printout, in the three roles a SACCO document is cleared through:
+ * Who signs the printout, in the three roles a document is cleared through:
  *
  *   Checked by      whoever raised the document
  *   Approved by     the second-to-last person to approve it
@@ -530,7 +530,7 @@ function approvalBlock(doc: PrintDocument): string {
 
 /**
  * The plain signature strip — a column per signatory, for documents that get signed rather than
- * approved: a payslip, a member statement, a loan agreement.
+ * approved: a payslip, a fee statement, a leaving certificate.
  */
 function signBlock(doc: PrintDocument): string {
   const sigs = doc.signatures ?? [];
@@ -578,7 +578,7 @@ function documentBody(doc: PrintDocument): string {
 }
 
 /**
- * Several documents as one printout — a batch of statements, one member per sheet. The
+ * Several documents as one printout — a batch of statements, one student per sheet. The
  * stylesheet is emitted once, since every document in a batch shares the same brand colours.
  */
 export function renderDocuments(docs: PrintDocument[]): string {

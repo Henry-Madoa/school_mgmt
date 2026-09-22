@@ -1,5 +1,5 @@
 /*
- * Petty Cash & Imprest printouts — AL (Sacco ERP) Rep52203476 "Imprest Request Form",
+ * Petty Cash & Imprest printouts — AL Rep52203476 "Imprest Request Form",
  * Rep52203430 "Imprest Surrender Form" and Rep52203481 "Petty Cash Voucher".
  */
 import { formatDate } from './format.ts';

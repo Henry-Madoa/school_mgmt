@@ -14,7 +14,7 @@ import { AppError } from './errors.ts';
 import { imageSrc } from './cloudinary.ts';
 import type { Actor, SignatureBlock } from './types.ts';
 
-/** Width the signature is delivered and printed at — the same box lib/loanDocuments.ts uses. */
+/** Width the signature is delivered and printed at — the same box lib/documentPrint.ts uses. */
 const SIGNATURE_WIDTH = 180;
 const SIGNATURE_HEIGHT = 70;
 

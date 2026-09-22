@@ -79,7 +79,7 @@ function RequisitionFields({ type, lookups, initial, lines, setLines }: {
           : <SearchableSelect id="f_employeeId" name="employeeId" label="Requested by (employee)" required items={lookups.employees}
               getValue={(e) => String(e.id)} getLabel={(e) => `${e.employee_no} — ${e.first_name} ${e.last_name}`} value={employeeId} onChange={setEmployeeId}
               placeholder="Search employee…" emptyText="No matching employees" />}
-        <Field name="title" label="Title" required defaultValue={initial?.title ?? ''} placeholder={isStore ? 'e.g. Stationery for the loans desk' : 'e.g. Replacement office chairs'} />
+        <Field name="title" label="Title" required defaultValue={initial?.title ?? ''} placeholder={isStore ? 'e.g. Stationery for the bursar’s office' : 'e.g. Replacement office chairs'} />
         <Field name="requisitionDate" label="Requisition date" type="date" required defaultValue={initial?.requisition_date ?? today()} />
       </div>
       <div className="grid g3">

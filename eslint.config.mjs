@@ -8,7 +8,7 @@ import nextVitals from 'eslint-config-next/core-web-vitals';
 import nextTs from 'eslint-config-next/typescript';
 
 export default defineConfig([
-  globalIgnores(['.next/**', 'node_modules/**', 'out/**', 'SaccoDemo/**', 'sms-kenya/**', 'prisma/migrations/**', 'next-env.d.ts']),
+  globalIgnores(['.next/**', 'node_modules/**', 'out/**', 'prisma/migrations/**', 'next-env.d.ts']),
   ...nextVitals,
   ...nextTs,
   {

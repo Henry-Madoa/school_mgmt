@@ -43,7 +43,7 @@ export interface FormModalProps<T> {
  *
  * A failure keeps the modal open with the message in place, so the user does
  * not lose what they typed — the old modal closed and fired a toast, which
- * meant re-keying an entire loan application.
+ * meant re-keying an entire admission form.
  */
 export function FormModal<T>({
   title, wide, onClose, onSubmit, submitLabel = 'Save', submitClass = 'btn',

@@ -26,17 +26,17 @@ const POLL_INTERVAL_MS = 60_000;
 // globalThis so a hot reload doesn't stack up a second poller running alongside the first, and
 // so the token stays stable across reloads instead of locking out an in-flight tick.
 const globalForPoller = globalThis as typeof globalThis & {
-  __saccoJobQueuePoller?: ReturnType<typeof setInterval>;
-  __saccoJobQueueToken?: string;
+  __schoolJobQueuePoller?: ReturnType<typeof setInterval>;
+  __schoolJobQueueToken?: string;
 };
 
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
-  if (globalForPoller.__saccoJobQueuePoller) return;
+  if (globalForPoller.__schoolJobQueuePoller) return;
 
   // A same-process shared secret (never sent anywhere else) so the tick endpoint can tell this
   // poller apart from an arbitrary internet request — see the Route Handler's own check.
-  const token = (globalForPoller.__saccoJobQueueToken ??= crypto.randomUUID());
+  const token = (globalForPoller.__schoolJobQueueToken ??= crypto.randomUUID());
   // Self-hosted deployments run on one fixed port (PORT, defaulting to Next's own 3000); this
   // assumption only breaks in local dev if that port is already taken by something else, in
   // which case the poller simply has nothing to reach and logs a fetch failure each tick.
@@ -51,5 +51,5 @@ export async function register() {
   // Delayed first tick — right at boot the HTTP listener this fetches may not be accepting
   // connections yet.
   setTimeout(tick, 5_000);
-  globalForPoller.__saccoJobQueuePoller = setInterval(tick, POLL_INTERVAL_MS);
+  globalForPoller.__schoolJobQueuePoller = setInterval(tick, POLL_INTERVAL_MS);
 }

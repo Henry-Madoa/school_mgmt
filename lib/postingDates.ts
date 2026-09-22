@@ -62,7 +62,7 @@ async function isExemptFromPostingDateChecks(userId: number): Promise<boolean> {
 }
 
 /** Every job-queue-driven background posting (interest accrual, entrance fee recovery, standing
- *  orders, checkoff, ...) runs as this exact synthetic actor (see jobQueue.ts/seed.ts) — its `id`
+ *  depreciation, reminders, ...) runs as this exact synthetic actor (see jobQueue.ts/seed.ts) — its `id`
  *  happens to collide with a real app_user row in a freshly seeded database, so this has to be
  *  checked by username, not id, or a background job would silently inherit whichever human
  *  happens to occupy user id 1's own Work Date and posting restrictions. */

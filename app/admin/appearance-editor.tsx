@@ -163,7 +163,7 @@ export function AppearanceEditor({ theme, presets, groups }: AppearanceEditorPro
             <div className="preview-nav">
               <div className="on">Dashboard</div>
               <div className="off">Students</div>
-              <div className="off">Loans</div>
+              <div className="off">Fees</div>
             </div>
             <div className="preview-body">
               <div className="preview-card">

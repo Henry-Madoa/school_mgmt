@@ -13,6 +13,7 @@ import { buildFilterClause, type FilterCondition, type FilterFieldDef } from './
 import { buildOrderClause, type SortState } from './listSort.ts';
 import { assertContactDetails } from './validate.ts';
 import type {
+  BoardingStatus,
   Actor, Enrollment, EnrollmentView, Guardian, IsoDate, Student, StudentGuardianView, StudentListRow, StudentStatus, StudentView,
 } from './types.ts';
 
@@ -127,6 +128,9 @@ export interface StudentInput {
   admissionDate: IsoDate;
   religion?: string | null;
   medicalNotes?: string | null;
+  /** DAY (default) or BOARDER — decides which fee items the student is billed. */
+  boardingStatus?: BoardingStatus | string | null;
+  house?: string | null;
   /** Blank = the next Admission No. from the STUDENT No. Series. */
   admissionNo?: string | null;
   /** Where the student is placed now — the stream fixes the grade and the year. */
@@ -138,6 +142,8 @@ function assertStudent(i: StudentInput): void {
   if (!i.admissionDate || !/^\d{4}-\d{2}-\d{2}$/.test(i.admissionDate)) throw new AppError('An admission date is required', 'VALIDATION');
   if (i.dateOfBirth && !/^\d{4}-\d{2}-\d{2}$/.test(i.dateOfBirth)) throw new AppError('Date of birth must be YYYY-MM-DD', 'VALIDATION');
   if (i.gender && !['MALE', 'FEMALE'].includes(i.gender)) throw new AppError('Gender must be MALE or FEMALE', 'VALIDATION');
+  if (i.boardingStatus && !['DAY', 'BOARDER'].includes(String(i.boardingStatus))) throw new AppError('Boarding status is DAY or BOARDER', 'VALIDATION');
+  if (i.dateOfBirth && i.dateOfBirth > i.admissionDate) throw new AppError('The date of birth cannot be after the admission date', 'VALIDATION');
 }
 
 function assertGuardians(rows: GuardianDraft[]): GuardianDraft[] {
@@ -154,9 +160,15 @@ function assertGuardians(rows: GuardianDraft[]): GuardianDraft[] {
 const fullName = (s: { first_name: string; middle_name?: string | null; last_name: string }): string =>
   [s.first_name, s.middle_name, s.last_name].filter(Boolean).join(' ');
 
-async function streamPlacement(streamId: number): Promise<{ id: number; grade_level_id: number; academic_year_id: number }> {
-  const st = await one<{ id: number; grade_level_id: number; academic_year_id: number }>('SELECT id, grade_level_id, academic_year_id FROM stream WHERE id = ?', streamId);
+async function streamPlacement(streamId: number, excludeStudentId?: number): Promise<{ id: number; grade_level_id: number; academic_year_id: number }> {
+  const st = await one<{ id: number; grade_level_id: number; academic_year_id: number; capacity: number | null; name: string; grade_name: string; roll: number }>(
+    `SELECT s.id, s.grade_level_id, s.academic_year_id, s.capacity, s.name, g.name AS grade_name,
+            (SELECT COUNT(*)::int FROM student x WHERE x.current_stream_id = s.id AND x.status = 'ACTIVE' ${excludeStudentId ? 'AND x.id <> ?' : ''}) AS roll
+     FROM stream s JOIN grade_level g ON g.id = s.grade_level_id WHERE s.id = ?`, ...(excludeStudentId ? [excludeStudentId, streamId] : [streamId]),
+  );
   if (!st) throw new AppError('Pick the class the student joins', 'VALIDATION');
+  // A class with a capacity refuses a placement that would exceed it — the office chooses another stream.
+  if (st.capacity && st.roll >= st.capacity) throw new AppError(`${st.grade_name} ${st.name} is full (${st.roll} of ${st.capacity}) — place the student in another class or raise the capacity`, 'VALIDATION');
   return st;
 }
 
@@ -250,12 +262,12 @@ export async function admitStudent(input: StudentInput, guardians: GuardianDraft
       `INSERT INTO student
          (admission_no, first_name, middle_name, last_name, gender, date_of_birth, birth_certificate_no, nemis_upi, address,
           county_id, sub_county_id, admission_date, status, current_grade_level_id, current_stream_id, religion, medical_notes,
-          created_at, created_by)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          boarding_status, house, created_at, created_by)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       admissionNo, input.firstName.trim(), input.middleName?.trim() || null, input.lastName.trim(), input.gender || null,
       input.dateOfBirth || null, input.birthCertificateNo?.trim() || null, input.nemisUpi?.trim() || null, input.address?.trim() || null,
       input.countyId || null, input.subCountyId || null, input.admissionDate, 'ACTIVE', placement.grade_level_id, placement.id,
-      input.religion?.trim() || null, input.medicalNotes?.trim() || null, now(), user.username,
+      input.religion?.trim() || null, input.medicalNotes?.trim() || null, input.boardingStatus || 'DAY', input.house?.trim() || null, now(), user.username,
     );
     const id = Number(info.lastInsertRowid);
     await run(
@@ -276,10 +288,11 @@ export async function updateStudent(id: number, input: Omit<StudentInput, 'strea
     if (!before) throw new AppError('Student not found', 'NOT_FOUND');
     await run(
       `UPDATE student SET first_name=?, middle_name=?, last_name=?, gender=?, date_of_birth=?, birth_certificate_no=?, nemis_upi=?,
-         address=?, county_id=?, sub_county_id=?, admission_date=?, religion=?, medical_notes=?, updated_at=?, updated_by=? WHERE id=?`,
+         address=?, county_id=?, sub_county_id=?, admission_date=?, religion=?, medical_notes=?, boarding_status=?, house=?, updated_at=?, updated_by=? WHERE id=?`,
       input.firstName.trim(), input.middleName?.trim() || null, input.lastName.trim(), input.gender || null, input.dateOfBirth || null,
       input.birthCertificateNo?.trim() || null, input.nemisUpi?.trim() || null, input.address?.trim() || null,
       input.countyId || null, input.subCountyId || null, input.admissionDate, input.religion?.trim() || null, input.medicalNotes?.trim() || null,
+      input.boardingStatus || before.boarding_status || 'DAY', input.house?.trim() || null,
       now(), user.username, id,
     );
     await saveGuardians(id, guardians, user);
@@ -310,7 +323,7 @@ export async function placeStudent(id: number, streamId: number, user: Actor): P
   const s = await one<Student>('SELECT * FROM student WHERE id = ?', id);
   if (!s) throw new AppError('Student not found', 'NOT_FOUND');
   if (s.status !== 'ACTIVE') throw new AppError('Only an active student can be placed in a class', 'VALIDATION');
-  const target = await streamPlacement(streamId);
+  const target = await streamPlacement(streamId, id);
   await tx(async () => {
     const current = await one<Enrollment>(`SELECT * FROM enrollment WHERE student_id = ? AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1`, id);
     if (current && current.academic_year_id === target.academic_year_id) {
@@ -330,6 +343,41 @@ export async function placeStudent(id: number, streamId: number, user: Actor): P
       target.grade_level_id, target.id, now(), user.username, id);
   });
   await audit(user, 'STUDENT_PLACE', 'student', id, { stream: streamId });
+}
+
+/* ------------------------------------------------------------- promotion */
+
+export interface PromotionDecision {
+  studentId: number;
+  /** The class in the next year to place them in; null = they leave the school as a graduate. */
+  streamId: number | null;
+}
+
+/**
+ * End-of-year promotion for a whole class at once: each student is placed in their next-year
+ * class (placeStudent records PROMOTED / REPEATED on this year's enrolment) or graduates.
+ * Students already placed in a class of the target year are left alone, so a run can be repeated
+ * for the stragglers.
+ */
+export async function promoteStudents(decisions: PromotionDecision[], user: Actor): Promise<{ promoted: number; repeated: number; graduated: number; skipped: number }> {
+  const out = { promoted: 0, repeated: 0, graduated: 0, skipped: 0 };
+  for (const d of decisions) {
+    const s = await one<Student>('SELECT * FROM student WHERE id = ?', d.studentId);
+    if (!s || s.status !== 'ACTIVE') { out.skipped += 1; continue; }
+    if (!d.streamId) {
+      await setStudentStatus(s.id, 'GRADUATED', 'End-of-year promotion', user);
+      out.graduated += 1;
+      continue;
+    }
+    const target = await one<{ grade_level_id: number; academic_year_id: number }>('SELECT grade_level_id, academic_year_id FROM stream WHERE id = ?', d.streamId);
+    if (!target) { out.skipped += 1; continue; }
+    const current = await one<{ academic_year_id: number; grade_level_id: number }>(`SELECT academic_year_id, grade_level_id FROM enrollment WHERE student_id = ? AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1`, s.id);
+    if (current && current.academic_year_id === target.academic_year_id) { out.skipped += 1; continue; }
+    await placeStudent(s.id, d.streamId, user);
+    if (current && current.grade_level_id === target.grade_level_id) out.repeated += 1; else out.promoted += 1;
+  }
+  await audit(user, 'STUDENTS_PROMOTE', 'student', null, out);
+  return out;
 }
 
 /** Cloudinary public_id of the student's photo — returns the previous one so the caller can destroy it. */

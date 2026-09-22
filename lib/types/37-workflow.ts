@@ -37,7 +37,7 @@ export interface DocumentTypeOption {
   /** Whether a submission flow actually calls findMatchingWorkflow() for this document type.
    *  False for any table beyond the wired set: an admin can still configure conditions and
    *  approval steps for it, but it stays inert — no code path creates a task from it — until
-   *  real integration code is added, the same way LOAN/JOURNAL/etc. were. */
+   *  real integration code is added, the same way JOURNAL/RECEIPT/etc. were. */
   wired: boolean;
 }
 
@@ -178,6 +178,11 @@ export interface ApprovalUserSetup {
   allow_posting_to_time: string | null;
   /** AL User Setup "Employee No." — the employee this login is; Self Service hangs off it. */
   employee_id: number | null;
+  /** The login is teaching staff: the Teacher Portal shows inside Self Service. */
+  is_teacher: Flag;
+  /** A student or guardian login — the Student / Parent portal's subject. */
+  student_id: number | null;
+  guardian_id: number | null;
 }
 
 /** One row of the Approval User Setup grid — the user plus their configured setup, if any. */
@@ -194,6 +199,11 @@ export interface ApprovalUserSetupRow {
   employee_id: number | null;
   employee_no: string | null;
   employee_name: string | null;
+  is_teacher: Flag;
+  student_id: number | null;
+  student_name: string | null;
+  guardian_id: number | null;
+  guardian_name: string | null;
   is_approval_administrator: Flag;
   can_reverse_journal: Flag;
   allow_posting_from: IsoDate | null;
@@ -229,7 +239,7 @@ export interface WorkflowTask {
 /** A task row as shown in the "My Approvals" worklist — with display labels resolved. */
 export interface WorkflowTaskRow extends WorkflowTask {
   workflow_name: string | null;
-  /** A short human label for the document (loan no., application no., journal no.). */
+  /** A short human label for the document (receipt no., application no., journal no.). */
   document_label: string;
   /** Where "Review" / clicking the row should navigate. */
   link: string;

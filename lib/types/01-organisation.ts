@@ -9,9 +9,9 @@ export interface Organisation {
   short_name: string | null;
   motto: string | null;
   registration_no: string | null;
-  sasra_licence_no: string | null;
+  licence_no: string | null;
   kra_pin: string | null;
-  society_type: string | null;
+  school_type: string | null;
   physical_address: string | null;
   postal_address: string | null;
   city: string | null;
@@ -42,6 +42,8 @@ export interface Organisation {
   ceo_signature: string | null;
   ceo_name: string | null;
   bad_debt_recovery_account_id: number | null;
+  /** Contra-income account bursaries, scholarships and sibling discounts post to (as a negative fee invoice line). */
+  fee_discount_account_id: number | null;
   /** The bank account holding the M-Pesa paybill float — lib/mpesa debits its G/L on every receipt. */
   mpesa_bank_account_id: number | null;
   logo: string | null;
@@ -67,7 +69,7 @@ export interface Organisation {
 export type OrgBrand = Pick<
   Organisation,
   'name' | 'short_name' | 'motto' | 'logo' | 'currency_code' | 'currency_symbol'
-  | 'locale' | 'timezone' | 'website' | 'phone_primary' | 'email' | 'sasra_licence_no'
+  | 'locale' | 'timezone' | 'website' | 'phone_primary' | 'email' | 'licence_no'
 >;
 
 export type ThemeTokens = Record<string, string>;

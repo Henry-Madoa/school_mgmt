@@ -1,6 +1,6 @@
 /*
  * VAT + Withholding Tax engine — the shared arithmetic and the VAT Entry ledger. The AL
- * "SACCODEMO" localization (Cod52203434, Tab52203440) reuses Business Central's VAT Posting Setup
+ * localization (Cod52203434, Tab52203440) reuses Business Central's VAT Posting Setup
  * for both taxes: a VAT Product Posting Group carries a Type of VAT | WHT, and the setup row for a
  * (VAT Bus. Posting Group × Code) pair holds the % and the G/L account — the input-VAT account for
  * VAT rows, the tax-payable account for WHT rows.

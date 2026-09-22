@@ -1,12 +1,12 @@
 /*
- * Staff Claims — AL (Sacco ERP) Tab52203447 "Request Header" with Request Type "Staff Claim",
+ * Staff Claims — AL Tab52203447 "Request Header" with Request Type "Staff Claim",
  * Pag52203468 "Staff Claim", Pag52203471 "Staff Claims", Cod52203432.PostStaffClaim.
  *
- * An employee spent their own money on the SACCO's business and claims it back. The claim is
+ * An employee spent their own money on the school's business and claims it back. The claim is
  * lines of what was spent; once approved it is paid from a bank account, or through payroll,
  * and posts through the same employee subledger as imprests (lib/imprest.ts).
  *
- *   Pay Now           Dr expense lines A   Cr Control A   (ledger −A: the SACCO owes)
+ *   Pay Now           Dr expense lines A   Cr Control A   (ledger −A: the school owes)
  *                     Dr Control A         Cr bank A      (ledger +A: paid)   — one journal,
  *                     as Cod52203432 posts both employee legs so the claim shows on the ledger
  *   Pay from Payroll  Dr expense lines A   Cr Control A   (ledger −A), and an IMPCLAIM allowance

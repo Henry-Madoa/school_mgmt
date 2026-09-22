@@ -1,13 +1,13 @@
 /*
  * SOAP — Business Central's /WS endpoint over the published web services:
  *
- *   GET  /WS/Page/Members?wsdl                       WSDL of a page service
- *   POST /WS/Page/Members                            Read, ReadMultiple, Create, Update, Delete, IsUpdated
- *   GET  /WS/Codeunit/SaccoIntegration?wsdl          WSDL of a codeunit service
- *   POST /WS/Codeunit/SaccoIntegration               one operation per procedure
+ *   GET  /WS/Page/Students?wsdl                      WSDL of a page service
+ *   POST /WS/Page/Students                           Read, ReadMultiple, Create, Update, Delete, IsUpdated
+ *   GET  /WS/Codeunit/SchoolIntegration?wsdl         WSDL of a codeunit service
+ *   POST /WS/Codeunit/SchoolIntegration              one operation per procedure
  *   GET  /WS/SystemService?wsdl · POST Companies     BC's SystemService
  *
- * A company segment is accepted (/WS/<Company>/Page/Members) and ignored — one company here.
+ * A company segment is accepted (/WS/<Company>/Page/Students) and ignored — one company here.
  * Namespaces follow BC: urn:microsoft-dynamics-schemas/page/<name> and /codeunit/<name>.
  * ReadMultiple takes BC filter criteria: `..` ranges, `|` alternatives, `<>`, `>=`, `*` wildcards.
  */

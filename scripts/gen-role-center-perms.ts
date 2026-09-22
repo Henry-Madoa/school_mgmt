@@ -11,7 +11,7 @@ import { expandActionsToLines } from '../lib/permissions.ts';
 import { ROLES } from '../lib/seed.ts';
 
 const NEW_ROLE_NAMES = [
-  'Super Role Centre', 'CRM Officer', 'Credit Officer', 'FOSA Officer', 'Finance Manager', 'Accountant',
+  'Super Role Centre', 'School Administration', 'Student / Parent Portal', 'Finance Manager', 'Accountant',
 ];
 
 const rows: string[] = [];

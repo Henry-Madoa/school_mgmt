@@ -245,7 +245,7 @@ export const listStreams = (academicYearId?: number | null): Promise<StreamView[
 
 export const getStream = (id: number): Promise<StreamView | undefined> => one<StreamView>(`${STREAM_SELECT} WHERE s.id = ?`, id);
 
-export interface StreamInput { gradeLevelId: number; academicYearId: number; name: string; classTeacherId?: number | null }
+export interface StreamInput { gradeLevelId: number; academicYearId: number; name: string; classTeacherId?: number | null; capacity?: number | null }
 
 export async function saveStream(id: number | null, input: StreamInput, user: Actor): Promise<{ id: number }> {
   const name = String(input.name || '').trim();
@@ -258,16 +258,35 @@ export async function saveStream(id: number | null, input: StreamInput, user: Ac
   const dup = await hasAnyRow('stream', `grade_level_id = ? AND academic_year_id = ? AND name = ? ${id ? 'AND id <> ?' : ''}`,
     ...(id ? [input.gradeLevelId, input.academicYearId, name, id] : [input.gradeLevelId, input.academicYearId, name]));
   if (dup) throw new AppError('That class already exists for the year', 'DUPLICATE');
+  const capacity = input.capacity ? Math.max(1, Math.round(Number(input.capacity))) : null;
   if (id) {
-    await run('UPDATE stream SET grade_level_id=?, academic_year_id=?, name=?, class_teacher_id=? WHERE id=?',
-      input.gradeLevelId, input.academicYearId, name, input.classTeacherId || null, id);
+    await run('UPDATE stream SET grade_level_id=?, academic_year_id=?, name=?, class_teacher_id=?, capacity=? WHERE id=?',
+      input.gradeLevelId, input.academicYearId, name, input.classTeacherId || null, capacity, id);
     await audit(user, 'STREAM_UPDATE', 'stream', id, { name });
     return { id };
   }
-  const info = await run('INSERT INTO stream (grade_level_id, academic_year_id, name, class_teacher_id) VALUES (?,?,?,?)',
-    input.gradeLevelId, input.academicYearId, name, input.classTeacherId || null);
+  const info = await run('INSERT INTO stream (grade_level_id, academic_year_id, name, class_teacher_id, capacity) VALUES (?,?,?,?,?)',
+    input.gradeLevelId, input.academicYearId, name, input.classTeacherId || null, capacity);
   await audit(user, 'STREAM_CREATE', 'stream', info.lastInsertRowid, { name });
   return { id: Number(info.lastInsertRowid) };
+}
+
+/**
+ * Opens next year's classes from this year's — every stream copied with its grade, name, capacity
+ * and class teacher into the target year (existing ones are left alone). The usual first step of
+ * a year-end promotion.
+ */
+export async function copyStreamsToYear(fromYearId: number, toYearId: number, user: Actor): Promise<{ copied: number }> {
+  if (fromYearId === toYearId) throw new AppError('Pick a different year to copy into', 'VALIDATION');
+  if (!(await hasAnyRow('academic_year', 'id = ?', toYearId))) throw new AppError('Target year not found', 'NOT_FOUND');
+  const r = await run(
+    `INSERT INTO stream (grade_level_id, academic_year_id, name, class_teacher_id, capacity)
+     SELECT s.grade_level_id, ?, s.name, s.class_teacher_id, s.capacity FROM stream s
+     WHERE s.academic_year_id = ? AND NOT EXISTS (SELECT 1 FROM stream t WHERE t.academic_year_id = ? AND t.grade_level_id = s.grade_level_id AND t.name = s.name)`,
+    toYearId, fromYearId, toYearId,
+  );
+  await audit(user, 'STREAMS_COPY', 'academic_year', toYearId, { fromYearId, copied: r.changes });
+  return { copied: r.changes };
 }
 
 export async function deleteStream(id: number, user: Actor): Promise<void> {
@@ -299,6 +318,50 @@ export const listSubjectsForGrade = (gradeLevelId: number): Promise<Subject[]> =
     `SELECT s.* FROM subject s JOIN subject_offering o ON o.subject_id = s.id
      WHERE o.grade_level_id = ? AND s.status = 'ACTIVE' ORDER BY s.is_core DESC, s.name`, gradeLevelId,
   );
+
+/**
+ * The subjects one student takes this year: every core subject offered in their grade, plus the
+ * electives they are enrolled in (student_subject). Marks, report cards and the marks roster all
+ * go through here, so an elective shows only for those who take it.
+ */
+export const listSubjectsForStudent = (studentId: number): Promise<Subject[]> =>
+  all<Subject>(
+    `SELECT DISTINCT s.* FROM student st
+     JOIN subject_offering o ON o.grade_level_id = st.current_grade_level_id
+     JOIN subject s ON s.id = o.subject_id AND s.status = 'ACTIVE'
+     LEFT JOIN enrollment e ON e.student_id = st.id AND e.status = 'ACTIVE'
+     LEFT JOIN student_subject ss ON ss.student_id = st.id AND ss.subject_id = s.id AND ss.academic_year_id = e.academic_year_id
+     WHERE st.id = ? AND (s.is_core OR ss.id IS NOT NULL)
+     ORDER BY s.is_core DESC, s.name`, studentId,
+  );
+
+/** The students in a class who take a subject — everyone for a core subject, the enrolled for an elective. */
+export const listSubjectTakers = (streamId: number, subjectId: number): Promise<{ id: number }[]> =>
+  all<{ id: number }>(
+    `SELECT st.id FROM student st JOIN subject s ON s.id = ?
+     JOIN stream sm ON sm.id = st.current_stream_id
+     WHERE st.current_stream_id = ? AND st.status = 'ACTIVE'
+       AND (s.is_core OR EXISTS (SELECT 1 FROM student_subject ss WHERE ss.student_id = st.id AND ss.subject_id = s.id AND ss.academic_year_id = sm.academic_year_id))`,
+    subjectId, streamId,
+  );
+
+/** Replaces a student's electives for the year (core subjects need no row and are ignored). */
+export async function setStudentElectives(studentId: number, subjectIds: number[], user: Actor): Promise<{ saved: number }> {
+  const st = await one<{ current_grade_level_id: number | null; current_stream_id: number | null }>('SELECT current_grade_level_id, current_stream_id FROM student WHERE id = ?', studentId);
+  if (!st?.current_grade_level_id || !st.current_stream_id) throw new AppError('The student is not placed in a class', 'VALIDATION');
+  const year = await one<{ academic_year_id: number }>('SELECT academic_year_id FROM stream WHERE id = ?', st.current_stream_id);
+  if (!year) throw new AppError('Class not found', 'NOT_FOUND');
+  const electives = new Set((await listSubjectsForGrade(st.current_grade_level_id)).filter((s) => !s.is_core).map((s) => s.id));
+  const wanted = [...new Set(subjectIds.map(Number).filter((id) => electives.has(id)))];
+  await tx(async () => {
+    await run('DELETE FROM student_subject WHERE student_id = ? AND academic_year_id = ?', studentId, year.academic_year_id);
+    for (const id of wanted) {
+      await run('INSERT INTO student_subject (student_id, subject_id, academic_year_id, created_at, created_by) VALUES (?,?,?,?,?)', studentId, id, year.academic_year_id, new Date().toISOString(), user.username);
+    }
+  });
+  await audit(user, 'STUDENT_ELECTIVES_SET', 'student', studentId, { subjects: wanted });
+  return { saved: wanted.length };
+}
 
 export interface SubjectInput { code: string; name: string; educationLevelId?: number | null; isCore?: boolean; status?: string; gradeLevelIds: number[] }
 
@@ -340,7 +403,7 @@ export async function deleteSubject(id: number, user: Actor): Promise<void> {
 
 export const listGradingScales = async (): Promise<GradingScaleWithBands[]> => {
   const [scales, bands] = await Promise.all([
-    all<GradingScale>('SELECT * FROM grading_scale ORDER BY is_default DESC, name'),
+    all<GradingScale & { education_level_name: string | null }>('SELECT g.*, el.name AS education_level_name FROM grading_scale g LEFT JOIN education_level el ON el.id = g.education_level_id ORDER BY g.is_default DESC, g.name'),
     all<AssessmentBand>('SELECT * FROM assessment_band ORDER BY grading_scale_id, sort'),
   ]);
   return scales.map((s) => ({ ...s, bands: bands.filter((b) => b.grading_scale_id === s.id) }));
@@ -349,8 +412,22 @@ export const listGradingScales = async (): Promise<GradingScaleWithBands[]> => {
 export const getDefaultGradingScale = async (): Promise<GradingScaleWithBands | undefined> =>
   (await listGradingScales()).find((s) => s.is_default) ?? (await listGradingScales())[0];
 
-export interface BandDraft { id?: number | string | null; label: string; minScore: number; maxScore: number; colorHex?: string }
-export interface GradingScaleInput { name: string; isDefault?: boolean }
+/**
+ * The scale a grade's marks are labelled with: the one bound to the grade's education level (CBC
+ * bands for primary, letter grades with points for secondary…), else the school-wide default.
+ */
+export async function gradingScaleForGrade(gradeLevelId: number | null | undefined): Promise<GradingScaleWithBands | undefined> {
+  const scales = await listGradingScales();
+  if (gradeLevelId) {
+    const g = await one<{ education_level_id: number }>('SELECT education_level_id FROM grade_level WHERE id = ?', gradeLevelId);
+    const bound = g ? scales.find((s) => s.education_level_id === g.education_level_id) : undefined;
+    if (bound) return bound;
+  }
+  return scales.find((s) => s.is_default) ?? scales[0];
+}
+
+export interface BandDraft { id?: number | string | null; label: string; minScore: number; maxScore: number; colorHex?: string; points?: number | null }
+export interface GradingScaleInput { name: string; isDefault?: boolean; educationLevelId?: number | null }
 
 export async function saveGradingScale(id: number | null, input: GradingScaleInput, bands: BandDraft[], user: Actor): Promise<{ id: number }> {
   const name = String(input.name || '').trim();
@@ -367,18 +444,21 @@ export async function saveGradingScale(id: number | null, input: GradingScaleInp
   return tx(async () => {
     if (await hasAnyRow('grading_scale', `name = ? ${id ? 'AND id <> ?' : ''}`, ...(id ? [name, id] : [name]))) throw new AppError('That scale already exists', 'DUPLICATE');
     if (input.isDefault) await run('UPDATE grading_scale SET is_default = false');
+    if (input.educationLevelId && await hasAnyRow('grading_scale', `education_level_id = ? ${id ? 'AND id <> ?' : ''}`, ...(id ? [input.educationLevelId, id] : [input.educationLevelId]))) {
+      throw new AppError('That education level already has its own grading scale', 'DUPLICATE');
+    }
     let scaleId = id;
-    if (scaleId) await run('UPDATE grading_scale SET name=?, is_default=? WHERE id=?', name, !!input.isDefault, scaleId);
+    if (scaleId) await run('UPDATE grading_scale SET name=?, is_default=?, education_level_id=? WHERE id=?', name, !!input.isDefault, input.educationLevelId || null, scaleId);
     else {
-      const info = await run('INSERT INTO grading_scale (name, is_default) VALUES (?,?)', name, !!input.isDefault);
+      const info = await run('INSERT INTO grading_scale (name, is_default, education_level_id) VALUES (?,?,?)', name, !!input.isDefault, input.educationLevelId || null);
       scaleId = Number(info.lastInsertRowid);
     }
     await run('DELETE FROM assessment_band WHERE grading_scale_id = ?', scaleId);
     let sort = 0;
     for (const b of sorted) {
       sort += 1;
-      await run('INSERT INTO assessment_band (grading_scale_id, label, min_score, max_score, sort, color_hex) VALUES (?,?,?,?,?,?)',
-        scaleId, String(b.label).trim(), Number(b.minScore), Number(b.maxScore), sort, b.colorHex || '#64748b');
+      await run('INSERT INTO assessment_band (grading_scale_id, label, min_score, max_score, sort, color_hex, points) VALUES (?,?,?,?,?,?,?)',
+        scaleId, String(b.label).trim(), Number(b.minScore), Number(b.maxScore), sort, b.colorHex || '#64748b', b.points == null || b.points === ('' as unknown) ? null : Number(b.points));
     }
     // The school must always have a default scale to label marks with.
     if (!(await hasAnyRow('grading_scale', 'is_default'))) await run('UPDATE grading_scale SET is_default = true WHERE id = ?', scaleId);

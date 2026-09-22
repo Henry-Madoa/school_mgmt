@@ -162,7 +162,7 @@ export interface WhtAnalysisRow {
 }
 
 /* ================================================================================================
- * HR & Payroll — Employee Management (ported from "Sacco ERP" AL, object range 52203xxx).
+ * HR & Payroll — Employee Management (ported from the ERP AL, object range 52203xxx).
  * ================================================================================================ */
 
 /** Collapses AL's two overlapping status fields into one lifecycle. */
@@ -341,7 +341,7 @@ export interface EmployeeContract {
   created_at: IsoDateTime | null; created_by: string | null;
 }
 
-/** Mirrors member_edit_request: one edit request per employee, carrying the proposed bio-data
+/** One edit request per employee, carrying the proposed bio-data
  *  field values, plus a replace-all shadow table per sub-entity list (see lib/employeeEdits.ts). */
 export interface EmployeeEditRequest {
   no: string;
@@ -473,7 +473,7 @@ export interface EmployeeExitClearanceLineView extends EmployeeExitClearanceLine
 }
 
 /* ================================================================================================
- * HR & Payroll — Leave Management (ported from "Sacco ERP" AL, object range 52203xxx).
+ * HR & Payroll — Leave Management (ported from the ERP AL, object range 52203xxx).
  * ================================================================================================ */
 
 export type LeaveGender = 'ANY' | 'MALE' | 'FEMALE';
@@ -565,7 +565,7 @@ export interface HrLeavePlanView extends HrLeavePlan {
 export interface HrLeavePlanLine { id: number; plan_no: string; start_date: IsoDate; end_date: IsoDate; days: number }
 
 /* ================================================================================================
- * HR & Payroll — Payroll (ported from "Sacco ERP" AL, object range 52203xxx). Posts real
+ * HR & Payroll — Payroll (ported from the ERP AL, object range 52203xxx). Posts real
  * double-entry journals on period close via the existing postJournal() engine.
  * ================================================================================================ */
 

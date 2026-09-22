@@ -368,7 +368,7 @@ async function AccountsTab({ search, filtersRaw, sortRaw, asOf, from }: {
   );
 }
 
-/** Shared table for Vendor (Savings) and Customer (Loans) Ledger Entries — same underlying
+/** Shared table for Vendor and Customer (fee account) Ledger Entries — same underlying
  *  `txn` data, filtered by module in lib/gl.ts's listSubledgerEntries(). */
 async function PeriodsTab({ search, filtersRaw, sortRaw }: { search: string; filtersRaw?: string; sortRaw?: string }) {
   const filters = parseFilters(filtersRaw);

@@ -16,7 +16,7 @@ export interface RunActionOptions<T> {
  *
  * Server Actions return `{ ok, … }` rather than throwing (see lib/errors.ts), so
  * the failure path here is the same shape everywhere and a business rule such
- * as "you cannot approve a loan you captured" reaches the user verbatim.
+ * as "you cannot approve a receipt you captured" reaches the user verbatim.
  */
 function useAction() {
   const router = useRouter();

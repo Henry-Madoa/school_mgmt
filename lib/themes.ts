@@ -46,7 +46,7 @@ export const PRESETS: Record<string, { label: string; tokens: ThemeTokens }> = {
       '--info': '#1d6fb8',
     },
   },
-  'sacco-blue': {
+  'school-blue': {
     label: 'Academy Blue',
     tokens: {
       ...BASE,

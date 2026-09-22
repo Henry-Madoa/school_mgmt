@@ -29,7 +29,7 @@ setDefaultResultOrder('ipv4first');
  * avoid opening a new pool per reload.
  */
 
-const globalForDb = globalThis as typeof globalThis & { __saccoPrisma?: PrismaClient; __saccoCompanyClients?: Map<string, PrismaClient> };
+const globalForDb = globalThis as typeof globalThis & { __schoolPrisma?: PrismaClient; __schoolCompanyClients?: Map<string, PrismaClient> };
 
 /*
  * Companies (lib/companies.ts): a company is a PostgreSQL schema holding its own copy of every
@@ -70,8 +70,8 @@ function connect(schema: string = DEFAULT_SCHEMA): PrismaClient {
   });
 }
 
-const db: PrismaClient = globalForDb.__saccoPrisma ?? (globalForDb.__saccoPrisma = connect());
-const companyClients = globalForDb.__saccoCompanyClients ?? (globalForDb.__saccoCompanyClients = new Map());
+const db: PrismaClient = globalForDb.__schoolPrisma ?? (globalForDb.__schoolPrisma = connect());
+const companyClients = globalForDb.__schoolCompanyClients ?? (globalForDb.__schoolCompanyClients = new Map());
 
 function clientFor(schema: string): PrismaClient {
   if (schema === DEFAULT_SCHEMA) return db;
@@ -161,7 +161,8 @@ async function client(): Promise<RawClient> {
 
 /* ------------------------------------------------------------- translation */
 
-const NO_IDENTITY = /\binto\s+"?(session|sequence|member_application|member_edit_request|change_log_setup|account_opening_request|account_deactivation_request|account_activation_request|member_activation_request|member_readmission_request|standing_order|member_charging|collateral_application|collateral_register|collateral_release|loan_guarantor_change|member_exit|checkoff_batch|member_fixed_deposit|fosa_transaction|teller_transaction|member_lien|inter_account_transfer|bankers_cheque|cheque_deposit|economic_sector|no_series|no_series_setup|employee_edit_request|employee_contract_change|employee_exit|hr_leave_application|hr_leave_adjustment|hr_leave_recall|hr_leave_plan|share_trading_window|share_floating|imprest_request|imprest_purpose|petty_cash|staff_claim|requisition|loan_repayment|loan_moratorium|defaulter_notice|loan_recovery|loan_write_off|till_closing|gl_budget_name)"?\b/i;
+/** Tables without a serial id column — an insert into these gets no `RETURNING id` appended. */
+const NO_IDENTITY = /\binto\s+"?(session|sequence|change_log_setup|no_series|no_series_setup|employee_edit_request|employee_contract_change|employee_exit|hr_leave_application|hr_leave_adjustment|hr_leave_recall|hr_leave_plan|imprest_request|imprest_purpose|petty_cash|staff_claim|requisition|gl_budget_name)"?\b/i;
 
 /**
  * Rewrite the legacy `?` and `@named` placeholders into PostgreSQL's positional form.
@@ -246,7 +247,7 @@ export async function one<T>(sql: string, ...args: unknown[]): Promise<T | undef
 }
 
 /**
- * Whether `from` (e.g. `"member m"`) has any row matching `where`, ignoring search text and
+ * Whether `from` (e.g. `"student s"`) has any row matching `where`, ignoring search text and
  * dynamic filters entirely — this is what tells a genuinely empty list apart from a search or
  * filter that simply matched nothing, so a list page can grey out its filter controls only in
  * the former case instead of trapping a user who searched a non-empty list into zero results.
@@ -295,8 +296,8 @@ export async function run(sql: string, ...args: unknown[]): Promise<RunResult> {
  */
 export interface TxOptions {
   /** Milliseconds the transaction may run for. Defaults to two minutes, which covers every
-   *  ordinary document posting; a whole-membership run (a dividend calculation over every
-   *  savings account) is legitimately longer and passes its own. */
+   *  ordinary document posting; a whole-school run (an invoice run over every
+   *  student) is legitimately longer and passes its own. */
   timeout?: number;
 }
 

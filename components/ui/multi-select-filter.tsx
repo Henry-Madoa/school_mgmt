@@ -9,8 +9,8 @@ export interface MultiSelectOption { value: string; label: string; }
 const parseIds = (raw: string | null): string[] => (raw ? raw.split(',').filter(Boolean) : []);
 
 /**
- * A searchable, multi-value picker bound to a comma-joined query parameter — the Member
- * Statement's Member/Account/Loan filters, each independently multi-selectable and shareable
+ * A searchable, multi-value picker bound to a comma-joined query parameter — the
+ * statement filters, each independently multi-selectable and shareable
  * via URL exactly like every other filter on this app. Modelled on MemberSelect's combobox, but
  * accumulating a set of ids as removable chips instead of replacing a single value.
  */
@@ -72,7 +72,7 @@ export function MultiSelectFilter({
       <input
         type="text"
         value={query}
-        placeholder={disabled ? 'Select a member first' : placeholder}
+        placeholder={disabled ? 'Select a student first' : placeholder}
         disabled={disabled}
         onFocus={() => setOpen(true)}
         onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
@@ -93,8 +93,8 @@ export function MultiSelectFilter({
   );
 }
 
-/** Boolean filter, applied immediately — the Statement's "Show Accounts"/"Show Loans" toggles,
- *  independent of each other and of the Loan filter (an intentional, documented behaviour change
+/** Boolean filter, applied immediately — a statement's "Show …" toggles,
+ *  independent of each other and of the list filters (an intentional, documented behaviour change
  *  from the source report — see the design doc's §4.2). Absent from the URL means "on". */
 export function BoolToggle({ paramName, label, disabled }: {
   paramName: string; label: string; disabled?: boolean;

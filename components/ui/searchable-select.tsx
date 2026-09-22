@@ -6,9 +6,9 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
  * A generic searchable picker for any table-relation dropdown — a text input that filters a list
  * by its rendered label as you type, backed by a hidden `name`-field input so it drops into
  * readForm()'s FormData-based forms exactly like a native <select> (and slots into a controlled
- * row's own value/onChange state just as easily). Same shape as components/ui/member-select.tsx
+ * row's own value/onChange state just as easily). Same shape as components/ui/student-select.tsx
  * and components/ui/gl-account-select.tsx, generalised for every other table-relation dropdown
- * (Charges, Savings/Loan Products, Employers, Bank Accounts, Roles, Dimension values, …) so each
+ * (Fee Items, Streams, Employees, Bank Accounts, Roles, Dimension values, …) so each
  * one doesn't need its own bespoke copy of this same combobox logic.
  *
  * Nothing here defaults to the first row — the field opens empty (or showing whatever was already

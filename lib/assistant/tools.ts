@@ -231,7 +231,7 @@ const schoolInfo = tool({
   run: async () => {
     const [o, term] = await Promise.all([getOrg(), resolveTerm()]);
     if (!o) return {};
-    return { name: o.name, short_name: o.short_name, registration_no: o.registration_no, school_type: o.society_type, phone: o.phone_primary, email: o.email, website: o.website, currency: o.currency_code, financial_year_starts: `${o.fy_start_day}/${o.fy_start_month}`, current_term: term ? `${term.name} ${term.year_name} (${term.start_date} to ${term.end_date})` : null, today: formatDate(new Date().toISOString().slice(0, 10)) };
+    return { name: o.name, short_name: o.short_name, registration_no: o.registration_no, school_type: o.school_type, phone: o.phone_primary, email: o.email, website: o.website, currency: o.currency_code, financial_year_starts: `${o.fy_start_day}/${o.fy_start_month}`, current_term: term ? `${term.name} ${term.year_name} (${term.start_date} to ${term.end_date})` : null, today: formatDate(new Date().toISOString().slice(0, 10)) };
   },
 });
 

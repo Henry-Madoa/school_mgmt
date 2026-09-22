@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useToast } from './toast';
 
-// Errors that are routine noise, not something a teller needs to see.
+// Errors that are routine noise, not something a user needs to see.
 const IGNORED_NAMES = new Set(['AbortError']);
 
 /**

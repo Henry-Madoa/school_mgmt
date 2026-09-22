@@ -24,7 +24,7 @@ export interface NavGroup {
   /** Which Role Centres surface this group in the sidebar (Business Central: the Profile / Role
    *  Center defines the navigation). Omit for a group every Role Centre sees. The SUPER Role
    *  Centre always sees every group. Values are `profile.role_centre` keys —
-   *  SCHOOL_ADMIN | TEACHER | STUDENT_PARENT | FINANCE_MANAGER | ACCOUNTANT | HR_PAYROLL | SELF_SERVICE. */
+   *  SCHOOL_ADMIN | STUDENT_PARENT | FINANCE_MANAGER | ACCOUNTANT | HR_PAYROLL | SELF_SERVICE. */
   centres?: string[];
 }
 
@@ -50,6 +50,16 @@ export const NAV: NavGroup[] = [
     centres: ['SCHOOL_ADMIN'],
     items: [
       { path: '/students', label: 'Students', icon: '🎒', page: 'STUDENTS' },
+      { path: '/admissions', label: 'Admissions', icon: '📥', page: 'ADMISSIONS' },
+      { path: '/incidents', label: 'Discipline & Welfare', icon: '🩺', page: 'INCIDENTS' },
+      {
+        submenu: 'School Services', icon: '🚌',
+        items: [
+          { path: '/transport', label: 'Transport', icon: '🚌', page: 'TRANSPORT' },
+          { path: '/hostel', label: 'Hostel', icon: '🛏', page: 'HOSTEL' },
+          { path: '/library', label: 'Library', icon: '📚', page: 'LIBRARY' },
+        ],
+      },
       { path: '/guardians', label: 'Guardians', icon: '👪', page: 'GUARDIANS' },
       { path: '/classes', label: 'Classes', icon: '🏫', page: 'CLASSES' },
       { path: '/teachers', label: 'Teaching Staff', icon: '🧑‍🏫', page: 'TEACHERS' },
@@ -84,18 +94,6 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
-    // The Teacher Portal — every entry is scoped to the signed-in teacher's own classes.
-    group: 'My Classes',
-    centres: ['TEACHER'],
-    items: [
-      { path: '/my-classes', label: 'My Classes', icon: '🏫', page: 'TEACHER_PORTAL' },
-      { path: '/my-classes/attendance', label: 'Mark Register', icon: '✅', page: 'TEACHER_PORTAL' },
-      { path: '/my-classes/assessments', label: 'Enter Marks', icon: '📝', page: 'TEACHER_PORTAL' },
-      { path: '/my-classes/timetable', label: 'My Timetable', icon: '🗓', page: 'TEACHER_PORTAL' },
-      { path: '/announcements', label: 'Announcements', icon: '📣', page: 'ANNOUNCEMENTS' },
-    ],
-  },
-  {
     // The Student / Parent Portal — scoped to the login's own child(ren).
     group: 'My School',
     centres: ['STUDENT_PARENT'],
@@ -106,6 +104,7 @@ export const NAV: NavGroup[] = [
       { path: '/portal/attendance', label: 'Attendance', icon: '✅', page: 'STUDENT_PORTAL' },
       { path: '/portal/fees', label: 'Fees', icon: '💰', page: 'STUDENT_PORTAL' },
       { path: '/portal/announcements', label: 'Announcements', icon: '📣', page: 'STUDENT_PORTAL' },
+      { path: '/portal/services', label: 'Bus, Boarding & Library', icon: '🚌', page: 'STUDENT_PORTAL' },
     ],
   },
   {
@@ -275,8 +274,19 @@ export const NAV: NavGroup[] = [
     // Employee Self Service — the AL "SS" pages: every entry is the employee's own documents.
     group: 'Self Service',
     centres: ['SELF_SERVICE'],
-    // Grouped the way the modules that own each document are — Payroll, HR, Finance, Inventory.
+    // Grouped the way the modules that own each document are — Payroll, HR, Finance, Inventory —
+    // plus the Teacher Portal, which canNav() shows only to a login the User Setup marks as a teacher.
     items: [
+      {
+        submenu: 'My Classes', icon: '🏫',
+        items: [
+          { path: '/my-classes', label: 'My Classes', icon: '🏫', page: 'TEACHER_PORTAL' },
+          { path: '/my-classes/attendance', label: 'Mark Register', icon: '✅', page: 'TEACHER_PORTAL' },
+          { path: '/my-classes/assessments', label: 'Enter Marks', icon: '📝', page: 'TEACHER_PORTAL' },
+          { path: '/my-classes/timetable', label: 'My Timetable', icon: '🗓', page: 'TEACHER_PORTAL' },
+        ],
+      },
+      { path: '/announcements', label: 'Announcements', icon: '📣', page: 'ANNOUNCEMENTS' },
       {
         submenu: 'Payroll', icon: '💰',
         items: [

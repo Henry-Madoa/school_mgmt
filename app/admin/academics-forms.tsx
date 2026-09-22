@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { FormModal } from '@/components/ui/form-modal';
 import { Field } from '@/components/ui/field';
 import { useRunAction } from '@/components/ui/run-action';
+import { useEditableCard } from '@/components/ui/editable-card';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   saveAcademicYearRequest, setCurrentTermRequest, deleteAcademicYearRequest,
@@ -149,7 +150,10 @@ export function StreamFormButton({ stream, grades, years, teachers, defaultYearI
             <Field name="grade_level_id" label="Grade" type="select" required defaultValue={stream?.grade_level_id ?? grades[0]?.id ?? ''}
               options={grades.map((g) => ({ value: g.id, label: g.name }))} />
           </div>
-          <Field name="name" label="Class name" required placeholder="e.g. East, Red, Sunflower" defaultValue={stream?.name} />
+          <div className="grid g2">
+            <Field name="name" label="Class name" required placeholder="e.g. East, Red, Sunflower" defaultValue={stream?.name} />
+            <Field name="capacity" label="Capacity" type="number" min={1} defaultValue={stream?.capacity ?? ''} placeholder="No limit" hint="Placement refuses a full class" />
+          </div>
           <SearchableSelect id="f_class_teacher" name="class_teacher_id" label="Class teacher" items={teachers}
             getValue={(t) => String(t.id)} getLabel={(t) => `${t.employee_no} — ${t.first_name} ${t.last_name}`}
             value={teacherId} onChange={setTeacherId} placeholder="Search teaching staff…" emptyText="No teaching staff yet" />
@@ -158,6 +162,25 @@ export function StreamFormButton({ stream, grades, years, teachers, defaultYearI
     </>
   );
 }
+/** The inline editor on a class card (app/classes/[id]). */
+export function StreamEditForm({ stream, grades, years, teachers }: { stream: StreamView; grades: GradeLevel[]; years: Opt[]; teachers: { id: number; employee_no: string; first_name: string; last_name: string }[] }) {
+  const { close } = useEditableCard();
+  const [teacherId, setTeacherId] = useState(String(stream.class_teacher_id ?? ''));
+  return (
+    <FormModal inline title="" onClose={close} onSubmit={(v) => saveStreamRequest({ ...v, id: stream.id })} submitLabel="Save changes" successTitle="Class updated">
+      <div className="grid g4">
+        <Field name="academic_year_id" label="Academic year" type="select" required defaultValue={stream.academic_year_id} options={years.map((y) => ({ value: y.id, label: y.name }))} />
+        <Field name="grade_level_id" label="Grade" type="select" required defaultValue={stream.grade_level_id} options={grades.map((g) => ({ value: g.id, label: g.name }))} />
+        <Field name="name" label="Class name" required defaultValue={stream.name} />
+        <Field name="capacity" label="Capacity" type="number" min={1} defaultValue={stream.capacity ?? ''} placeholder="No limit" />
+      </div>
+      <SearchableSelect id="f_class_teacher_inline" name="class_teacher_id" label="Class teacher" items={teachers}
+        getValue={(t) => String(t.id)} getLabel={(t) => `${t.employee_no} — ${t.first_name} ${t.last_name}`}
+        value={teacherId} onChange={setTeacherId} placeholder="Search teaching staff…" emptyText="No teaching staff yet" />
+    </FormModal>
+  );
+}
+
 export const DeleteStreamButton = ({ id }: { id: number }) => (
   <DeleteButton title="Delete this class?" message="Refused while students are placed in it. Its timetable and assignments are removed." action={() => deleteStreamRequest(id)} />
 );
@@ -205,16 +228,22 @@ export const DeleteSubjectButton = ({ id }: { id: number }) => (
 
 /* ---------------------------------------------------------------- grading scales */
 
-interface BandRow { label: string; minScore: string; maxScore: string; colorHex: string }
+interface BandRow { label: string; minScore: string; maxScore: string; colorHex: string; points: string }
 
-export function GradingScaleFormButton({ scale, className = 'btn', children }: { scale?: GradingScaleWithBands | null; className?: string; children: React.ReactNode }) {
+const LETTER_GRADES: BandRow[] = [
+  ['A', '80', '100', '#1a7f37', '12'], ['A-', '75', '79.99', '#1a7f37', '11'], ['B+', '70', '74.99', '#1d6fb8', '10'], ['B', '65', '69.99', '#1d6fb8', '9'], ['B-', '60', '64.99', '#1d6fb8', '8'],
+  ['C+', '55', '59.99', '#b7791f', '7'], ['C', '50', '54.99', '#b7791f', '6'], ['C-', '45', '49.99', '#b7791f', '5'], ['D+', '40', '44.99', '#c0392b', '4'], ['D', '35', '39.99', '#c0392b', '3'],
+  ['D-', '30', '34.99', '#c0392b', '2'], ['E', '0', '29.99', '#7f1d1d', '1'],
+].map(([label, minScore, maxScore, colorHex, points]) => ({ label, minScore, maxScore, colorHex, points }));
+
+export function GradingScaleFormButton({ scale, levels = [], className = 'btn', children }: { scale?: GradingScaleWithBands | null; levels?: EducationLevel[]; className?: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
-  const initial = (): BandRow[] => (scale ? scale.bands.map((b) => ({ label: b.label, minScore: String(b.min_score), maxScore: String(b.max_score), colorHex: b.color_hex })) : [
+  const initial = (): BandRow[] => (scale ? scale.bands.map((b) => ({ label: b.label, minScore: String(b.min_score), maxScore: String(b.max_score), colorHex: b.color_hex, points: b.points == null ? '' : String(b.points) })) : [
     { label: 'Exceeding Expectations', minScore: '80', maxScore: '100', colorHex: '#1a7f37' },
     { label: 'Meeting Expectations', minScore: '60', maxScore: '79.99', colorHex: '#1d6fb8' },
     { label: 'Approaching Expectations', minScore: '40', maxScore: '59.99', colorHex: '#b7791f' },
     { label: 'Below Expectations', minScore: '0', maxScore: '39.99', colorHex: '#c0392b' },
-  ]);
+  ].map((b) => ({ ...b, points: '' })));
   const [bands, setBands] = useState<BandRow[]>(initial());
   const set = (i: number, k: keyof BandRow, v: string) => setBands(bands.map((b, idx) => (idx === i ? { ...b, [k]: v } : b)));
   return (
@@ -222,27 +251,33 @@ export function GradingScaleFormButton({ scale, className = 'btn', children }: {
       <button type="button" className={className} onClick={() => { setBands(initial()); setOpen(true); }}>{children}</button>
       {open ? (
         <FormModal title={scale ? `Edit ${scale.name}` : 'Add a grading scale'} wide onClose={() => setOpen(false)}
-          onSubmit={(v) => saveGradingScaleRequest({ ...v, id: scale?.id ?? '' }, bands.map((b) => ({ label: b.label, minScore: Number(b.minScore), maxScore: Number(b.maxScore), colorHex: b.colorHex })))}
+          onSubmit={(v) => saveGradingScaleRequest({ ...v, id: scale?.id ?? '' }, bands.map((b) => ({ label: b.label, minScore: Number(b.minScore), maxScore: Number(b.maxScore), colorHex: b.colorHex, points: b.points === '' ? null : Number(b.points) })))}
           successTitle="Saved">
-          <div className="grid g2">
+          <div className="grid g3">
             <Field name="name" label="Name" required defaultValue={scale?.name} placeholder="e.g. CBC Competency Scale" />
-            <Field name="is_default" label="Default scale (labels every mark)" type="checkbox" defaultValue={scale?.is_default ? 1 : 0} />
+            <Field name="education_level_id" label="Used for" type="select" defaultValue={scale?.education_level_id ?? ''} options={[{ value: '', label: 'Any level (school default)' }, ...levels.map((l) => ({ value: l.id, label: l.name }))]} hint="Bind a scale to a level — CBC bands for primary, letter grades for secondary" />
+            <Field name="is_default" label="School-wide default" type="checkbox" defaultValue={scale?.is_default ? 1 : 0} />
+          </div>
+          <div className="inline" style={{ gap: 6, marginBottom: 6 }}>
+            <span className="tiny">Presets:</span>
+            <button type="button" className="btn sm ghost" onClick={() => setBands(LETTER_GRADES.map((b) => ({ ...b })))}>KCSE letter grades (A–E, 12–1 points)</button>
           </div>
           <table>
-            <thead><tr><th>Band</th><th style={{ width: 100 }}>From</th><th style={{ width: 100 }}>To</th><th style={{ width: 80 }}>Colour</th><th style={{ width: 32 }} /></tr></thead>
+            <thead><tr><th>Band</th><th style={{ width: 90 }}>From</th><th style={{ width: 90 }}>To</th><th style={{ width: 70 }}>Points</th><th style={{ width: 80 }}>Colour</th><th style={{ width: 32 }} /></tr></thead>
             <tbody>
               {bands.map((b, i) => (
                 <tr key={i}>
                   <td><input type="text" value={b.label} onChange={(e) => set(i, 'label', e.target.value)} required aria-label="Band" style={{ width: '100%' }} /></td>
                   <td><input type="number" step="0.01" value={b.minScore} onChange={(e) => set(i, 'minScore', e.target.value)} required aria-label="From" style={{ width: '100%' }} /></td>
                   <td><input type="number" step="0.01" value={b.maxScore} onChange={(e) => set(i, 'maxScore', e.target.value)} required aria-label="To" style={{ width: '100%' }} /></td>
+                  <td><input type="number" step="1" value={b.points} onChange={(e) => set(i, 'points', e.target.value)} aria-label="Points" placeholder="—" style={{ width: '100%' }} /></td>
                   <td><input type="color" value={b.colorHex} onChange={(e) => set(i, 'colorHex', e.target.value)} aria-label="Colour" /></td>
                   <td><button type="button" className="btn sm ghost" aria-label="Remove" onClick={() => setBands(bands.filter((_, idx) => idx !== i))}>×</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <button type="button" className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => setBands([...bands, { label: '', minScore: '', maxScore: '', colorHex: '#64748b' }])}>Add band</button>
+          <button type="button" className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => setBands([...bands, { label: '', minScore: '', maxScore: '', colorHex: '#64748b', points: '' }])}>Add band</button>
         </FormModal>
       ) : null}
     </>
@@ -301,6 +336,9 @@ export function FeeItemFormButton({ item, accounts, className = 'btn', children 
             <Field name="status" label="Status" type="select" defaultValue={item?.status ?? 'ACTIVE'} options={['ACTIVE', 'INACTIVE']} />
             <Field name="sort" label="Order on the invoice" type="number" defaultValue={item?.sort ?? 1} />
           </div>
+          <Field name="applies_to" label="Billed to" type="select" defaultValue={item?.applies_to ?? 'ALL'}
+            options={[{ value: 'ALL', label: 'Every student' }, { value: 'BOARDER', label: 'Boarders only' }, { value: 'DAY', label: 'Day scholars only' }, { value: 'OPT_IN', label: 'Students who opt in (transport, clubs…)' }]}
+            hint="Who an invoice run bills this item to — a student's boarding status is on their card; opt-in items are ticked per student" />
         </FormModal>
       ) : null}
     </>

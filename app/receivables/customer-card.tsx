@@ -36,7 +36,7 @@ const codeOpts = (rows: { code: string; description: string }[], none = '(none)'
   [{ value: '', label: none }, ...rows.map((r) => ({ value: r.code, label: `${r.code} — ${r.description}` }))];
 
 /**
- * Business Central's Customer Card, edited in place — the same inline pattern as the member
+ * Business Central's Customer Card, edited in place — the same inline pattern as the student
  * application and employee cards. lib/customers.ts's updateCustomer() rewrites every column it
  * knows about rather than merging, so this is one form over the whole card: a per-section save
  * would blank the sections it didn't submit.

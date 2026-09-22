@@ -107,6 +107,9 @@ export async function saveApprovalUserSetupRow(
       allow_posting_from_time: String(values.allow_posting_from_time || '').trim() || null,
       allow_posting_to_time: String(values.allow_posting_to_time || '').trim() || null,
       employee_id: Number(values.employee_id) || null,
+      is_teacher: Number(values.is_teacher) ? 1 : 0,
+      student_id: Number(values.student_id) || null,
+      guardian_id: Number(values.guardian_id) || null,
     }, user);
     revalidatePath('/admin/workflows');
     return { updated: true };
@@ -121,8 +124,6 @@ export async function decideMyTask(
     const user = await requireUser();
     const result = await decideWorkflowTask(taskId, approve, comment.trim() || null, user);
     revalidatePath('/approvals');
-    revalidatePath('/member-applications');
-    revalidatePath('/loans');
     revalidatePath('/accounting');
     return result;
   });
@@ -137,8 +138,6 @@ export async function delegateMyTask(taskId: number): Promise<ActionResult<Deleg
     const user = await requireUser();
     const target = await delegateWorkflowTask(taskId, user);
     revalidatePath('/approvals');
-    revalidatePath('/member-applications');
-    revalidatePath('/loans');
     revalidatePath('/accounting');
     revalidatePath('/receivables');
     revalidatePath('/payables');

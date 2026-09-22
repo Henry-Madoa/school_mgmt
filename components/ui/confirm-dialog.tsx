@@ -19,7 +19,7 @@ const ConfirmContext = createContext<ConfirmFn>(async () => true);
 /**
  * An appealing, centered "are you sure?" gate for actions that can't be undone from the
  * screen the button sits on — processing an approved request into its real-world effect
- * (opening/deactivating/activating an account, creating a member, applying an edit).
+ * (posting a receipt, admitting a student, applying an edit).
  * `await confirm(...)` resolves `true` only once the user actually clicks through; a
  * `false` (Cancel, backdrop click, or Escape) means the caller should just return.
  */

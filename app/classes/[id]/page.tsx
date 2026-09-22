@@ -13,7 +13,8 @@ import { Card, CardHead, EmptyState, Stat, TableWrap, Toolbar, Spacer } from '@/
 import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { Money } from '@/components/ui/money';
 import { TimetableGrid } from '@/components/school/timetable-grid';
-import { StreamFormButton } from '@/app/admin/academics-forms';
+import { StreamEditForm } from '@/app/admin/academics-forms';
+import { EditableCard } from '@/components/ui/editable-card';
 import { AssignTeacherButton, UnassignButton } from '@/app/teachers/teacher-forms';
 import { SendReminderButton } from '@/app/fees/fee-actions';
 import { PublishClassButton } from '@/app/report-cards/report-card-actions';
@@ -46,17 +47,24 @@ export default async function ClassPage({ params }: { params: Promise<{ id: stri
         <Link href={`/attendance?stream=${id}`} className="btn ghost">Mark register</Link>
         <Link href={`/assessments?stream=${id}`} className="btn ghost">Enter marks</Link>
         <Link href={`/timetable?stream=${id}`} className="btn ghost">Timetable</Link>
+        <Link href={`/print/class-list/${id}`} className="btn ghost" target="_blank">Class list</Link>
+        <Link href={`/print/class-list/${id}?register=1`} className="btn ghost" target="_blank">Register sheet</Link>
+        {canManage ? <Link href={`/classes/${id}/promote`} className="btn ghost">Promote / end of year</Link> : null}
         {canRemind && owing.length ? <SendReminderButton streamId={id} label={`Remind ${owing.length} on fees`} className="btn ghost" /> : null}
         {canPublish && term && standings.length ? <PublishClassButton streamId={id} termId={term.id} className="btn ghost" /> : null}
-        {canManage ? <StreamFormButton stream={stream} grades={grades} years={years.map((y) => ({ id: y.id, name: y.name }))} teachers={teachers} className="btn">Edit class</StreamFormButton> : null}
       </Toolbar>
 
       <div className="grid g4">
-        <Stat label="Students" value={String(roster.length)} accent={false} foot={`${roster.filter((s) => s.gender === 'MALE').length} boys · ${roster.filter((s) => s.gender === 'FEMALE').length} girls`} />
+        <Stat label="Students" value={stream.capacity ? `${roster.length} / ${stream.capacity}` : String(roster.length)} accent={!!stream.capacity && roster.length >= stream.capacity} foot={`${roster.filter((s) => s.gender === 'MALE').length} boys · ${roster.filter((s) => s.gender === 'FEMALE').length} girls · ${roster.filter((s) => s.boarding_status === 'BOARDER').length} boarders`} />
         <Stat label="Attendance this term" value={`${attendance.rate}%`} foot={`${attendance.absent} absences over ${attendance.total ? Math.round(attendance.total / Math.max(roster.length, 1)) : 0} days`} />
         <Stat label="Class average" value={standings.length ? (standings.reduce((s, x) => s + x.average, 0) / standings.length).toFixed(1) : '—'} accent={false} foot={term ? `${term.name} · ${standings.length} with marks` : undefined} />
         <Stat label="Fees owing" value={<Money cents={owing.reduce((s, x) => s + Number(x.fee_balance), 0)} />} accent={owing.length > 0} foot={`${owing.length} student${owing.length === 1 ? '' : 's'}`} />
       </div>
+
+      <EditableCard title="Class" sub={`${stream.year_name} · ${stream.education_level_name}${stream.capacity ? ` · capacity ${stream.capacity}` : ''}`} canEdit={canManage}
+        form={<StreamEditForm stream={stream} grades={grades} years={years.map((y) => ({ id: y.id, name: y.name }))} teachers={teachers} />}>
+        <div className="tiny">Class teacher: <b>{stream.class_teacher_name ?? 'unassigned'}</b> · {roster.length} students{stream.capacity ? ` of ${stream.capacity}` : ''}</div>
+      </EditableCard>
 
       <Card>
         <CardHead title="Roster" sub="Active students placed in this class" />

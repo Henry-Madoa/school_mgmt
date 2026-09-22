@@ -38,7 +38,7 @@ export const SESSION_COOKIE = 'school_session';
 
 /**
  * A session that has not been used for this long is refused even though its absolute expiry has
- * not passed — a teller who walks away from a signed-in screen. Configurable per deployment
+ * not passed — a bursar who walks away from a signed-in screen. Configurable per deployment
  * (SESSION_IDLE_MINUTES); 0 disables the idle check.
  */
 const SESSION_IDLE_MINUTES = Number(process.env.SESSION_IDLE_MINUTES ?? 120) || 0;
@@ -142,11 +142,13 @@ export async function sessionUserById(userId: number): Promise<SessionUser | nul
 
   // The session user travels to server components and the assistant: no hashes or secrets on it.
   const { password_hash: _hash, totp_secret: _totp, totp_recovery_codes: _codes, ...rest } = row;
-  const [permissionSet, { profiles, activeProfile }] = await Promise.all([
+  const [permissionSet, { profiles, activeProfile }, setup] = await Promise.all([
     loadUserEffectivePermissions(row.id, row.role_id, !!row.is_system),
     loadProfiles(row.id, row.active_profile_id, !!row.is_system),
+    one<{ is_teacher: number; employee_id: number | null }>('SELECT is_teacher, employee_id FROM approval_user_setup WHERE user_id = ?', row.id),
   ]);
-  return { ...rest, totp_secret: null, totp_recovery_codes: null, permissionSet, profiles, activeProfile };
+  const isTeacher = !!setup?.is_teacher && !!setup.employee_id;
+  return { ...rest, totp_secret: null, totp_recovery_codes: null, permissionSet, profiles, activeProfile, isTeacher };
 }
 
 /** Folds a role's permission_set_line rows into direct {table}/{page} lookups. */

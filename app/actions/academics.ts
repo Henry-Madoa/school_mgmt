@@ -9,6 +9,7 @@ import * as timetable from '@/lib/academics/timetable';
 import * as attendance from '@/lib/academics/attendance';
 import * as assessments from '@/lib/academics/assessments';
 import * as announcements from '@/lib/announcements';
+import { notifyAnnouncement } from '@/lib/announcementNotify';
 import { requireTeacher, assertTeacherOnStream } from '@/lib/portal';
 import type { ActionResult, AnnouncementAudience, AttendanceStatus, FormValues } from '@/lib/types';
 
@@ -78,7 +79,16 @@ export async function saveStreamRequest(values: FormValues): Promise<ActionResul
     const user = await requireAnyAction('ADMIN_ACADEMIC_STRUCTURE_MANAGE', 'CLASSES_MANAGE');
     const r = await setup.saveStream(values.id ? Number(values.id) : null, {
       gradeLevelId: Number(values.grade_level_id), academicYearId: Number(values.academic_year_id), name: str(values.name), classTeacherId: num(values.class_teacher_id),
+      capacity: num(values.capacity),
     }, user);
+    revalidateSetup(); revalidatePath('/classes', 'layout');
+    return r;
+  });
+}
+export async function copyStreamsToYearRequest(fromYearId: number, toYearId: number): Promise<ActionResult<{ copied: number }>> {
+  return actionResult(async () => {
+    const user = await requireAnyAction('ADMIN_ACADEMIC_STRUCTURE_MANAGE', 'CLASSES_MANAGE');
+    const r = await setup.copyStreamsToYear(fromYearId, toYearId, user);
     revalidateSetup(); revalidatePath('/classes', 'layout');
     return r;
   });
@@ -105,7 +115,7 @@ export async function deleteSubjectRequest(id: number): Promise<ActionResult<{ d
 export async function saveGradingScaleRequest(values: FormValues, bands: setup.BandDraft[]): Promise<ActionResult<{ id: number }>> {
   return actionResult(async () => {
     const user = await requireAction('ADMIN_GRADING_MANAGE');
-    const r = await setup.saveGradingScale(values.id ? Number(values.id) : null, { name: str(values.name), isDefault: bool(values.is_default) },
+    const r = await setup.saveGradingScale(values.id ? Number(values.id) : null, { name: str(values.name), isDefault: bool(values.is_default), educationLevelId: num(values.education_level_id) },
       bands.map((b) => ({ ...b, minScore: Number(b.minScore), maxScore: Number(b.maxScore) })), user);
     revalidateSetup();
     return r;
@@ -226,6 +236,15 @@ export async function saveAnnouncementRequest(values: FormValues, viaPortal = fa
     const id = values.id ? Number(values.id) : null;
     const r = id ? (await announcements.updateAnnouncement(id, input, user), { id }) : await announcements.createAnnouncement(input, user);
     revalidatePath('/announcements', 'layout'); revalidatePath('/portal', 'layout'); revalidatePath('/my-classes', 'layout'); revalidatePath('/dashboard');
+    return r;
+  });
+}
+/** Sends an announcement out by SMS / e-mail to the guardians and/or staff it is addressed to. */
+export async function notifyAnnouncementRequest(id: number, values: FormValues): Promise<ActionResult<{ sms: number; email: number; recipients: number }>> {
+  return actionResult(async () => {
+    const user = await requireAction('ANNOUNCEMENTS_MANAGE');
+    const r = await notifyAnnouncement(id, { sms: bool(values.sms), email: bool(values.email) }, { guardians: bool(values.guardians), staff: bool(values.staff) }, user);
+    revalidatePath('/admin/data/outbox');
     return r;
   });
 }

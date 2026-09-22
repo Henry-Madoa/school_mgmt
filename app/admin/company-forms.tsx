@@ -32,7 +32,7 @@ export function CopyCompanyButton({ companies, defaultSource, className = 'btn',
             { value: 'FULL', label: 'Copy company — everything (a test copy of the source)' },
             { value: 'SETUP', label: 'Setup data only — products, chart of accounts, series, posting groups, workflows (preparing for production)' },
             { value: 'EMPTY', label: 'No data — an empty company' },
-          ]} hint="Setup data only starts every balance and number series afresh; no members, customers, vendors, employees, assets or postings come across" />
+          ]} hint="Setup data only starts every balance and number series afresh; no students, customers, vendors, employees, assets or postings come across" />
           <Field name="source" label="Take structure and data from" type="select" required options={companies.map((c) => ({ value: c.code, label: `${c.display_name} (${c.code})` }))} defaultValue={defaultSource} />
           <div className="grid g2">
             <Field name="code" label="New company code" required uppercase placeholder="e.g. TEST" maxLength={16} hint="Letters, digits and underscores" />

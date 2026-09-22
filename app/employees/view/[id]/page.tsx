@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireAction, currentCanAction } from '@/lib/session';
+import { hasAnyRow } from '@/lib/db';
 import {
   getEmployee, getAdjacentEmployeeIds, listActiveEmployees, listNextOfKin, listBeneficiaries, listDependants,
   listEmergencyContacts, listProfessionalBodies, listWorkHistory, listBankAccounts, listContracts,
@@ -65,8 +66,9 @@ export default async function EmployeeDetailPage({ params, searchParams }: {
     listNextOfKin(id), listBeneficiaries(id), listDependants(id), listEmergencyContacts(id),
     listProfessionalBodies(id), listWorkHistory(id), listBankAccounts(id), listContracts(id),
   ]);
-  const [postingGroups, currencies, salaryScales] = await Promise.all([
+  const [postingGroups, currencies, salaryScales, isTeacher, isDriver, canTransport] = await Promise.all([
     listPostingGroups(), listCurrencies(), listSalaryScales(),
+    hasAnyRow('teacher_profile', 'employee_id = ?', id), hasAnyRow('driver_profile', 'employee_id = ?', id), currentCanAction('TRANSPORT_READ'),
   ]);
   const lookups: EmployeeLookups = {
     globalDimension1Values: gd1Values, globalDimension2Values: gd2Values, caption1, caption2,
@@ -99,6 +101,8 @@ export default async function EmployeeDetailPage({ params, searchParams }: {
         <Toolbar>
           <Link href="/employees" className="btn ghost sm">← All employees</Link>
           <Spacer />
+          {isTeacher ? <Link href={`/teachers/${emp.id}`} className="btn ghost">Teacher profile</Link> : null}
+          {isDriver && canTransport ? <Link href={`/transport/drivers/${emp.id}`} className="btn ghost">Driver profile</Link> : null}
           {isNew && canCreate && isOwn ? <DeleteButton id={emp.id} className="btn ghost" /> : null}
           {isNew && canCreate ? <SubmitButton id={emp.id} className="btn ghost" /> : null}
           {isApproved && canEditRequests ? <Link href={`/employee-edits?new=${emp.id}`} className="btn ghost">Request a change (Employee Editing)</Link> : null}

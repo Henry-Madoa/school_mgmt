@@ -141,7 +141,7 @@ export function formatDateFilterExpression(from: string | null | undefined, to: 
   return '';
 }
 
-/** "24 Aug 2026 09:05:19 +03:00" in the SACCO's own timezone, regardless of what timezone the
+/** "24 Aug 2026 09:05:19 +03:00" in the school's own timezone, regardless of what timezone the
  *  rendering server happens to be in — a printed statement's "Date & Time generated" must not
  *  drift with where the Next.js process is hosted. */
 export function formatStatementTimestamp(d: Date = new Date()): string {
@@ -153,8 +153,8 @@ export function formatStatementTimestamp(d: Date = new Date()): string {
   return `${get('day')} ${get('month')} ${get('year')} ${get('hour')}:${get('minute')}:${get('second')} +03:00`;
 }
 
-/** Whole years between a date of birth and today — the Loan Application/Appraisal printouts'
- *  "Age" field, since the member table stores date_of_birth, not a pre-computed age. */
+/** Whole years between a date of birth and today — the admission and ID card printouts'
+ *  "Age" field, since the student table stores date_of_birth, not a pre-computed age. */
 export function ageFromDob(dob: string | null | undefined): number | null {
   if (!dob) return null;
   const birth = new Date(dob);
@@ -182,13 +182,13 @@ export type Tone = '' | 'ok' | 'warn' | 'bad' | 'info' | 'accent';
 const STATUS_TONE: Record<string, Tone> = {
   ACTIVE: 'ok', POSTED: 'ok', APPROVED: 'ok', DISBURSED: 'ok', PAID: 'ok', PERFORMING: 'ok', OPEN: 'ok',
   VERIFIED: 'ok', ALLOWED: 'ok', YES: 'ok', ELIGIBLE: 'ok', AVAILABLE: 'ok',
-  LINKED_TO_LOAN: 'info', COLLECTED: '',
+  COLLECTED: '',
   CLOSED: '', HEADER: '', RESTRICTED: '', ARCHIVED: '',
   PENDING: 'warn', DUE: 'warn', PARTIAL: 'warn', WATCH: 'warn', DORMANT: 'warn', APPLICATION: 'warn',
   SUBSTANDARD: 'warn', REFERRED: 'warn', 'PENDING APPROVAL': 'warn',
   REJECTED: 'bad', REVERSED: 'bad', SUSPENDED: 'bad', FROZEN: 'bad', DOUBTFUL: 'bad', LOSS: 'bad',
   WRITTEN_OFF: 'bad', 'WRITTEN OFF': 'bad', EXITED: 'bad', DISABLED: 'bad', INACTIVE: 'bad',
-  // "Document Status" values (e.g. member_application.status) are Title Case, not SCREAMING_CASE.
+  // "Document Status" values (e.g. sales_header.status) are Title Case, not SCREAMING_CASE.
   Open: 'ok', Approved: 'ok', Processed: 'ok', Fulfilled: 'ok', Cleared: 'ok', Received: 'ok', Posted: 'ok',
   'Pending Approval': 'warn', 'Pending Prepayment': 'warn', Running: 'warn',
   Rejected: 'bad', Reversed: 'bad', Terminated: 'bad', Bounced: 'bad',

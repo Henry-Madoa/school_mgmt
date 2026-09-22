@@ -30,6 +30,7 @@ export function ReportCardSheet({ card, school, photoSrc }: { card: ReportCardVi
           <div className="tiny">Overall average</div>
           <div style={{ fontSize: 24, fontWeight: 700 }}>{card.overall.average ?? '—'}</div>
           {card.overall.competency_label ? <span className="rc-band" style={{ background: card.overall.band_color ?? '#64748b' }}>{card.overall.competency_label}</span> : null}
+          {card.overall.mean_points != null ? <div className="tiny" style={{ marginTop: 4 }}>Mean grade <b>{card.overall.mean_grade ?? '—'}</b> · {card.overall.mean_points} points</div> : null}
           {card.position ? <div className="tiny" style={{ marginTop: 4 }}>Position {card.position.rank} of {card.position.of}</div> : null}
         </div>
       </div>
@@ -40,7 +41,8 @@ export function ReportCardSheet({ card, school, photoSrc }: { card: ReportCardVi
               <th>Subject</th>
               {types.map(([id, name]) => <th key={id} className="num">{name}</th>)}
               <th className="num">Average</th>
-              <th>Competency</th>
+              <th>{card.overall.scale_name && card.lines.some((l) => l.points != null) ? 'Grade' : 'Competency'}</th>
+              {card.lines.some((l) => l.points != null) ? <th className="num">Points</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -50,9 +52,10 @@ export function ReportCardSheet({ card, school, photoSrc }: { card: ReportCardVi
                 {types.map(([id]) => { const s = l.scores.find((x) => x.assessment_type_id === id); return <td key={id} className="num">{s ? s.score : '—'}</td>; })}
                 <td className="num"><b>{l.average ?? '—'}</b></td>
                 <td>{l.competency_label ? <span className="rc-band" style={{ background: l.band_color ?? '#64748b' }}>{l.competency_label}</span> : <span className="muted-cell">—</span>}</td>
+                {card.lines.some((x) => x.points != null) ? <td className="num">{l.points ?? '—'}</td> : null}
               </tr>
             ))}
-            {!card.lines.length ? <tr><td colSpan={types.length + 3} className="muted-cell">No marks recorded this term.</td></tr> : null}
+            {!card.lines.length ? <tr><td colSpan={types.length + 4} className="muted-cell">No marks recorded this term.</td></tr> : null}
           </tbody>
         </table>
       </div>

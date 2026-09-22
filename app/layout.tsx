@@ -11,7 +11,7 @@ import { ConfirmDialogProvider } from '@/components/ui/confirm-dialog';
 export const dynamic = 'force-dynamic';
 
 /**
- * `maximumScale` is deliberately left alone — a teller checking a figure on a
+ * `maximumScale` is deliberately left alone — a bursar checking a figure on a
  * phone must be able to pinch-zoom the ledger.
  */
 export const viewport: Viewport = {

@@ -237,7 +237,7 @@ async function RecordTab({ me }: { me: SelfEmployee }) {
       <div className="grid">
         <Card>
           <CardHead title="My record" sub="As HR holds it — request a change under Employee editing to have it updated" />
-          <div className="member-photo" style={{ marginBottom: 'var(--sp)' }}>
+          <div className="profile-photo" style={{ marginBottom: 'var(--sp)' }}>
             {photo ? <img src={photo} alt={`${emp.first_name} ${emp.last_name}`} className="photo" /> : <div className="avatar" aria-hidden="true">{initials(`${emp.first_name} ${emp.last_name}`)}</div>}
           </div>
           <div className="grid g2">

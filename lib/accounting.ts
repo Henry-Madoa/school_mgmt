@@ -1,13 +1,13 @@
 /*
  * The posting engine. This is the ONLY place in the system that writes to
- * journal / journal_line / gl_account.balance. Every module (savings, loans,
- * FOSA, fees, interest) raises a business event and hands balanced lines to
+ * journal / journal_line / gl_account.balance. Every module (fees, receipts,
+ * payroll, fixed assets) raises a business event and hands balanced lines to
  * postJournal, which enforces:
  *   - debits == credits, and non-zero
  *   - accounts exist, are ACTIVE and postable
  *   - the accounting period is OPEN
  *   - idempotency keys are never posted twice
- * so member/savings/loan subsidiary balances can never diverge from the GL.
+ * so the receivables, payables and bank subsidiary balances can never diverge from the GL.
  */
 import { one, all, run, tx, nextSequence } from './db.ts';
 import { PostingError } from './errors.ts';
@@ -100,7 +100,7 @@ async function postJournalInTx(opts: PostJournalOptions): Promise<PostedJournal>
   // journalDateWindowSql) — so a period closed against postings does not refuse it; BC likewise
   // lets Close Income Statement post into a closed fiscal year.
   if (!closingEntry) await assertPeriodOpen(valueDate);
-  // A null or system-actor user (interest accrual, entrance fee recovery, standing orders, ...)
+  // A null or system-actor user (depreciation runs, scheduled jobs, ...)
   // is never subject to a per-user posting-date restriction — assertPostingDateAllowed() itself
   // skips those, the same way canReverseJournal()'s own check above is skipped for a null one.
   await assertPostingDateAllowed(valueDate, user);
@@ -168,8 +168,8 @@ async function postJournalInTx(opts: PostJournalOptions): Promise<PostedJournal>
 
   const journalNo = await nextSequence('JOURNAL');
   const now = new Date().toISOString();
-  // Document No. convention: a caller with its own source document (Member Charging, Account
-  // Activation, a loan disbursement/repayment, ...) always passes its own document number as
+  // Document No. convention: a caller with its own source document (a fee invoice run, a receipt,
+  // a fee invoice run, a receipt, a payroll period, ...) always passes its own document number as
   // `reference` — that's what should trace a G/L Entry back to where it came from. Only a
   // manual G/L journal has no such document, so it's the one case this falls back to the
   // journal's own auto-generated number instead of staying blank.
@@ -208,7 +208,7 @@ async function postJournalInTx(opts: PostJournalOptions): Promise<PostedJournal>
 
   // Business-Central-style subledger posting: a line against a Bank Account's control
   // account also lands a bank_account_ledger_entry, automatically and for every caller
-  // (savings/loan/charge postings and manual journals alike) — see lib/gl.ts's Bank
+  // (document postings and manual journals alike) — see lib/gl.ts's Bank
   // Account CRUD for where these rows come from, and no-direct-posting for the other
   // half of the picture (blocking a manual journal from bypassing the subledger).
   const bankAccounts = await all<{ id: number; gl_account_id: number; currency_code: string }>(
@@ -272,7 +272,7 @@ async function reverseJournalInTx(
   valueDate?: IsoDate,
 ): Promise<PostedJournal> {
   // The one choke point every reversal path posts its compensating entry through (GL's own
-  // reversal, a savings transaction reversal, ...), so the per-user "Can Reverse Journal" grant
+  // reversal, a receipt reversal, ...), so the per-user "Can Reverse Journal" grant
   // from User Setup is enforced once, here, rather than duplicated in each caller. A null user
   // (system-driven reversal, if one is ever added) is left ungated, same as elsewhere in this
   // module — there is no session to check a grant against.

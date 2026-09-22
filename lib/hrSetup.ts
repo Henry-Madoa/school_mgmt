@@ -3,7 +3,7 @@
  * Scales"), Employment Contract Types, Termination Reasons (AL "Grounds for Termination") and
  * Exit Clearance Sections. Department is not a bespoke master here — it is the existing Global
  * Dimension 2 (global_dimension_2_value, see lib/pool.ts's listDimensionValues), the same
- * dimension infrastructure Members and G/L postings already use, managed under Admin -> Setup
+ * dimension infrastructure students and G/L postings already use, managed under Admin -> Setup
  * Pool -> General -> Global Dimensions.
  */
 import { one, all, run, audit } from './db.ts';

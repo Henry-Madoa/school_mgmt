@@ -1,5 +1,5 @@
 /*
- * Requisition printouts — AL (Sacco ERP) Report 53072 "Store Requisition Document" (Pag52203805)
+ * Requisition printouts — AL Report 53072 "Store Requisition Document" (Pag52203805)
  * and Report 53071 / "Purchase Requisition" (Pag52203808 "Print Out" / "Print Approved purchase
  * requisition").
  */

@@ -1,6 +1,6 @@
 /*
  * Employee Self Service — the login's own employee record and the row-level scoping built on
- * it, ported from the Sacco ERP AL where every self-service document does, on insert:
+ * it, ported from the ERP AL where every self-service document does, on insert:
  *
  *     UserSetup.GET(UserId);
  *     UserSetup.TESTFIELD("Employee No.");

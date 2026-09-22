@@ -71,7 +71,7 @@ export function WorkflowFormButton({
   const [open, setOpen] = useState(false);
   const w = workflow ?? null;
   // A new workflow starts with no document type chosen — defaulting to the first of the list
-  // (Member Application) silently attaches the workflow to the wrong document when the author
+  // (Admission Application) silently attaches the workflow to the wrong document when the author
   // moves straight on to the conditions. The field is required, so submit blocks until picked.
   const [documentType, setDocumentType] = useState<string>(w?.document_type || '');
   const [fields, setFields] = useState<DocumentFieldDef[]>([]);

@@ -15,7 +15,7 @@ const revalidate = () => { revalidatePath('/fees', 'layout'); revalidatePath('/a
 export async function saveFeeItemRequest(values: FormValues): Promise<ActionResult<{ id: number }>> {
   return actionResult(async () => {
     const user = await requireAction('ADMIN_FEE_ITEMS_MANAGE');
-    const r = await feeSetup.saveFeeItem(values.id ? Number(values.id) : null, { code: str(values.code), name: str(values.name), glAccountId: Number(values.gl_account_id), status: str(values.status) || 'ACTIVE', sort: Number(values.sort) || 1 }, user);
+    const r = await feeSetup.saveFeeItem(values.id ? Number(values.id) : null, { code: str(values.code), name: str(values.name), glAccountId: Number(values.gl_account_id), status: str(values.status) || 'ACTIVE', sort: Number(values.sort) || 1, appliesTo: str(values.applies_to) || 'ALL' }, user);
     revalidate();
     return r;
   });
@@ -38,10 +38,13 @@ export async function copyFeeStructureRequest(fromTermId: number, toTermId: numb
   return actionResult(async () => { const user = await requireAction('FEES_STRUCTURE_MANAGE'); const r = await feeSetup.copyFeeStructure(fromTermId, toTermId, user); revalidate(); return r; });
 }
 
-export async function createFeeInvoiceRunRequest(values: FormValues): Promise<ActionResult<{ no: string }>> {
+export async function createFeeInvoiceRunRequest(values: FormValues, instalments: { pct: number | string; due_date: string }[] = []): Promise<ActionResult<{ no: string }>> {
   return actionResult(async () => {
     const user = await requireAction('FEES_INVOICE_RUN');
-    const r = await invoices.createFeeInvoiceRun({ termId: Number(values.term_id), gradeLevelId: values.grade_level_id ? Number(values.grade_level_id) : null, postingDate: str(values.posting_date), dueDate: str(values.due_date) }, user);
+    const r = await invoices.createFeeInvoiceRun({
+      termId: Number(values.term_id), gradeLevelId: values.grade_level_id ? Number(values.grade_level_id) : null, postingDate: str(values.posting_date), dueDate: str(values.due_date),
+      instalments: instalments.map((i) => ({ pct: Number(i.pct), due_date: str(i.due_date) })),
+    }, user);
     revalidate();
     return r;
   });

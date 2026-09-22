@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireAction } from '@/lib/session';
 import { actionResult } from '@/lib/errors';
 import * as students from '@/lib/students';
+import * as billing from '@/lib/fees/billing';
 import type { ActionResult, FormValues, StudentStatus } from '@/lib/types';
 
 const str = (v: unknown): string => String(v ?? '').trim();
@@ -18,6 +19,7 @@ const studentInput = (v: FormValues) => ({
   dateOfBirth: str(v.date_of_birth) || null, birthCertificateNo: str(v.birth_certificate_no) || null, nemisUpi: str(v.nemis_upi) || null,
   address: str(v.address) || null, countyId: num(v.county_id), subCountyId: num(v.sub_county_id), admissionDate: str(v.admission_date),
   religion: str(v.religion) || null, medicalNotes: str(v.medical_notes) || null,
+  boardingStatus: str(v.boarding_status) || 'DAY', house: str(v.house) || null,
 });
 
 export async function admitStudentRequest(values: FormValues, guardians: students.GuardianDraft[]): Promise<ActionResult<{ id: number; admissionNo: string }>> {
@@ -54,6 +56,43 @@ export async function placeStudentRequest(id: number, streamId: number): Promise
     revalidate(id);
     return { id };
   });
+}
+
+/** End-of-year promotion: each student's next-year class, or graduation (streamId null). */
+export async function promoteStudentsRequest(decisions: students.PromotionDecision[]): Promise<ActionResult<Awaited<ReturnType<typeof students.promoteStudents>>>> {
+  return actionResult(async () => {
+    const user = await requireAction('CLASSES_MANAGE');
+    const r = await students.promoteStudents(decisions, user);
+    revalidate();
+    return r;
+  });
+}
+
+/* ---------------------------------------------------------------- fee options & discounts */
+
+export async function setStudentFeeOptionsRequest(studentId: number, feeItemIds: number[]): Promise<ActionResult<{ saved: true }>> {
+  return actionResult(async () => {
+    const user = await requireAction('FEES_STRUCTURE_MANAGE');
+    await billing.setStudentFeeOptions(studentId, feeItemIds, user);
+    revalidate(studentId);
+    return { saved: true };
+  });
+}
+
+export async function saveStudentFeeDiscountRequest(studentId: number, values: FormValues): Promise<ActionResult<{ id: number }>> {
+  return actionResult(async () => {
+    const user = await requireAction('FEES_STRUCTURE_MANAGE');
+    const r = await billing.saveStudentFeeDiscount(values.id ? Number(values.id) : null, studentId, {
+      feeItemId: num(values.fee_item_id), percent: Number(values.percent) || 0, amount: Math.round((Number(values.amount) || 0) * 100),
+      description: str(values.description), fromTermId: num(values.from_term_id), toTermId: num(values.to_term_id), status: str(values.status) || 'ACTIVE',
+    }, user);
+    revalidate(studentId);
+    return r;
+  });
+}
+
+export async function deleteStudentFeeDiscountRequest(id: number, studentId: number): Promise<ActionResult<{ deleted: true }>> {
+  return actionResult(async () => { const user = await requireAction('FEES_STRUCTURE_MANAGE'); await billing.deleteStudentFeeDiscount(id, user); revalidate(studentId); return { deleted: true }; });
 }
 
 export async function updateGuardianRequest(id: number, values: FormValues): Promise<ActionResult<{ id: number }>> {

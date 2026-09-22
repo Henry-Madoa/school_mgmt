@@ -10,7 +10,7 @@ import { buildPaymentVoucherDocument } from '@/lib/paymentVoucherSlip';
 import { buildReceiptDocument } from '@/lib/receiptSlip';
 import { buildImprestRequestPrint, buildImprestSurrenderPrint, buildPettyCashPrint, buildStaffClaimPrint } from '@/lib/imprestPrint';
 import { buildStoreRequisitionPrint, buildPurchaseRequisitionPrint } from '@/lib/requisitionPrint';
-import { buildFeeStatementPrint, buildReportCardPrint } from '@/lib/schoolPrint';
+import { buildFeeStatementPrint, buildReportCardPrint, buildFamilyStatementPrint, buildClassListPrint, buildStudentIdPrint, buildLeavingCertificatePrint, buildWorkTicketPrint } from '@/lib/schoolPrint';
 import { requirePortalStudent } from '@/lib/portal';
 import { currentCanAction } from '@/lib/session';
 import { Printable } from '@/components/ui/printable';
@@ -65,6 +65,11 @@ const KINDS: Record<string, {
   // School documents — the office prints anyone's; a parent or student prints their own from the portal.
   'fee-statement': { action: 'FEES_READ', selfAction: 'STUDENT_PORTAL_VIEW', studentOf: (no) => Number(no), build: buildFeeStatementPrint },
   'report-card': { action: 'REPORT_CARDS_READ', selfAction: 'STUDENT_PORTAL_VIEW', studentOf: (no) => Number(no.split('-')[0]), build: buildReportCardPrint },
+  'family-statement': { action: 'FEES_READ', build: buildFamilyStatementPrint },
+  'class-list': { action: 'CLASSES_READ', build: buildClassListPrint },
+  'student-id': { action: 'STUDENTS_READ', build: buildStudentIdPrint },
+  'leaving-certificate': { action: 'STUDENTS_READ', build: buildLeavingCertificatePrint },
+  'work-ticket': { action: 'TRANSPORT_READ', build: buildWorkTicketPrint },
   // Payroll period reports (the AL report set): "<periodId>-<report key>".
   'payroll-report': {
     action: 'PAYROLL_PERIODS_READ',

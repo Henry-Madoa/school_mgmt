@@ -219,6 +219,9 @@ model approval_user_setup {
   /// with their employee and dimensions (lib/selfService.ts). One login per employee.
   employee_id               Int?      @unique(map: "ux_approval_user_setup_employee")
   /// A student or guardian login — the Student / Parent portal scopes everything to this record.
+  /// Marks the linked employee as teaching staff for this login: the Teacher Portal (My Classes,
+  /// registers, marks) shows inside Employee Self Service only when this is set.
+  is_teacher                Int       @default(0)
   student_id                Int?      @unique(map: "ux_approval_user_setup_student")
   guardian_id               Int?      @unique(map: "ux_approval_user_setup_guardian")
   user                      app_user  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -230,7 +233,7 @@ model approval_user_setup {
 /// One pending or decided step of an in-flight workflow, against any document type.
 /// workflow_id/workflow_step_id are null for a "legacy" task — no admin-defined
 /// workflow matched, so it's decided by the document's static permission check
-/// (e.g. LOAN:APPROVE) rather than a specific assignee, exactly as before this
+/// (e.g. RECEIPT:APPROVE) rather than a specific assignee, exactly as before this
 /// module existed.
 model workflow_task {
   id                   Int                  @id @default(autoincrement())
@@ -401,9 +404,9 @@ model gl_account {
   balance                                 BigInt                       @default(0)
   status                                  String                       @default("ACTIVE")
   /// Blocks this account from a manual G/L journal line — it's a subledger control account
-  /// (Bank, savings liability, loan receivable) and must be posted through its subledger
+  /// (Bank, receivables, payables) and must be posted through its subledger
   /// instead. Enforced only at the manual-journal entry point; postJournal() itself still
-  /// posts to these accounts freely for savings/loan/charge postings. See lib/gl.ts.
+  /// posts to these accounts freely for document postings. See lib/gl.ts.
   no_direct_posting                       Int                          @default(0)
   vat_bus_posting_group_code              String?
   vat_prod_posting_group_code             String?
@@ -520,9 +523,9 @@ model journal_line {
 }
 
 /// The Bank Account subledger master (Business Central's Bank Account card) — one row per
-/// real-world bank/cash/mobile-money account the SACCO holds, each mapped 1:1 to its own
+/// real-world bank/cash/mobile-money account the school holds, each mapped 1:1 to its own
 /// no-direct-posting G/L control account. Seeded to match the existing CHANNEL_GL map in
-/// lib/savings.ts (Cash Till/Bank/M-Pesa/Check-off) so every channel a teller already posts
+/// lib/receipts.ts (Cash/Bank/M-Pesa) so every channel the cash office already posts
 /// through has a matching reconcilable bank account from day one.
 model bank_account {
   created_at                  String?
@@ -534,10 +537,9 @@ model bank_account {
   account_no                  String?
   balance                     BigInt                      @default(0)
   status                      String                      @default("ACTIVE")
-  /// FOSA tellering role — 'MAIN' (the SACCO's external bank), 'TREASURY' (the branch vault),
-  /// 'TILL' (a teller's own cash drawer), or 'OTHER' (M-Pesa/check-off clearing and the generic
-  /// teller cash account the Savings screen posts through). Drives which accounts each
-  /// fosa_transaction document type may move cash between — see lib/cashManagement.ts.
+  /// Cash office role — 'MAIN' (the school's external bank), 'TREASURY' (the safe),
+  /// 'TILL' (the cash office drawer), 'PETTY_CASH' (a float), or 'OTHER' (M-Pesa clearing and
+  /// the like). See lib/bankMgmt.ts.
   account_type                String                      @default("OTHER")
   currency_code               String                      @default("KES")
   balance_lcy                 BigInt                      @default(0)
@@ -570,7 +572,7 @@ model bank_account {
 /// One posted entry against a bank account's G/L control account — populated automatically by
 /// postJournal() (lib/accounting.ts) for every journal line that hits a bank_account's
 /// gl_account_id, whatever module posted it. This is what makes reconciliation complete: it
-/// covers manual G/L journals against the account too, not just savings/loan postings that
+/// covers manual G/L journals against the account too, not just document postings that
 /// happen to carry a txn row.
 model bank_account_ledger_entry {
   id                     Int                  @id @default(autoincrement())
@@ -638,9 +640,9 @@ model organisation {
   short_name                   String?
   motto                        String?
   registration_no              String?
-  sasra_licence_no             String?
+  licence_no                   String?
   kra_pin                      String?
-  society_type                 String?       @default("Deposit Taking SACCO")
+  school_type                  String?       @default("Private Primary School")
   physical_address             String?
   postal_address               String?
   city                         String?
@@ -689,6 +691,9 @@ model organisation {
   ceo_signature                String?
   ceo_name                     String?
   bad_debt_recovery_account_id Int?
+  /// Contra-income account bursaries, scholarships and sibling discounts post to (a negative
+  /// invoice line), so gross fee income and what was waived both stay visible.
+  fee_discount_account_id      Int?
   /// The bank account holding the M-Pesa paybill float (lib/mpesa) — debited by every receipt.
   mpesa_bank_account_id        Int?
   mpesa_bank_account           bank_account? @relation("org_mpesa_bank", fields: [mpesa_bank_account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -720,7 +725,7 @@ model permission_set_line {
   id           Int    @id @default(autoincrement())
   role_id      Int
   object_type  String // 'TABLE' | 'PAGE'
-  object_name  String // table name (e.g. 'loan') or page code (e.g. 'LOANS')
+  object_name  String // table name (e.g. 'student') or page code (e.g. 'STUDENTS')
   read_perm    Int    @default(0)
   insert_perm  Int    @default(0)
   modify_perm  Int    @default(0)
@@ -740,7 +745,7 @@ model user_permission_line {
   id           Int      @id @default(autoincrement())
   user_id      Int
   object_type  String // 'TABLE' | 'PAGE'
-  object_name  String // table name (e.g. 'loan') or page code (e.g. 'LOANS')
+  object_name  String // table name (e.g. 'student') or page code (e.g. 'STUDENTS')
   read_perm    Int      @default(0)
   insert_perm  Int      @default(0)
   modify_perm  Int      @default(0)
@@ -877,7 +882,7 @@ model config_package_field {
 /// background task, dispatched by job_type (see lib/jobQueue.ts's JOB_HANDLERS), that an admin
 /// sets up and the in-process scheduler (instrumentation.ts) polls and runs unattended. AL's own
 /// Recurrence (Day/Time-of-day patterns) is simplified to a plain "every N minutes" interval —
-/// the same kind of simplification organisation.member_exit_notice_days already applies to a
+/// the same kind of simplification hr_employment_contract_type.default_notice_period_days already applies to a
 /// DateFormula elsewhere in this port.
 model job_queue_entry {
   id                  Int     @id @default(autoincrement())
@@ -913,7 +918,7 @@ model job_queue_entry {
 
 /// Employee subledger — AL "Employee Ledger Entry" / "Detailed Employee Ledger Entry": every
 /// imprest issue, surrender, refund, claim, payroll recovery and staff receipt or payment, against
-/// the imprest control G/L. Positive = the employee owes the SACCO.
+/// the imprest control G/L. Positive = the employee owes the school.
 model employee_ledger_entry {
   id           Int      @id @default(autoincrement())
   employee_id  Int
@@ -1079,7 +1084,7 @@ model petty_cash_line {
 }
 
 /// AL Tab52203447 "Request Header" with Request Type Staff Claim — money an employee spent on
-/// the SACCO's business and claims back; paid from a bank account or through payroll.
+/// the school's business and claims back; paid from a bank account or through payroll.
 model staff_claim {
   no                     String             @id
   employee_id            Int
@@ -1134,7 +1139,7 @@ model staff_claim_line {
   @@index([claim_no], map: "ix_scll_claim")
 }
 
-/// Store & Purchase Requisitions — AL (Sacco ERP) Tab52203515 "Requisition Header". One table
+/// Store & Purchase Requisitions — AL Tab52203515 "Requisition Header". One table
 /// carries both requisition types; see lib/requisitions.ts and the migration for the lifecycle.
 model requisition {
   no                      String             @id
@@ -1304,7 +1309,7 @@ model product_posting_group {
   item                     item[]
 }
 
-/// Business Central Table 27 "Item", trimmed to what this SACCO's back office needs: no locations
+/// Business Central Table 27 "Item", trimmed to what a school's back office needs: no locations
 /// beyond the multi-location stock split (stockkeeping_unit), no variants/serials/lots, no Item
 /// Charges. `inventory` is a maintained roll-up of this item's stockkeeping_unit rows (the same
 /// cached-running-total idea as gl_account.balance). Reordering fields are this item's defaults —
@@ -1380,9 +1385,9 @@ model stockkeeping_unit {
 }
 
 /// Business Central Table 83 "Item Journal Line", scoped to Positive/Negative Adjmt. only.
-/// Lifecycle Open -> Pending Approval -> Approved -> Processed, same shape as bankers_cheque.
+/// Lifecycle Open -> Pending Approval -> Approved -> Processed.
 /// `journal_id` and `applies_to_entry_id` are plain reference columns (no FK constraint), the
-/// same convention bankers_cheque.journal_id uses — see lib/itemJournal.ts.
+/// see lib/itemJournal.ts.
 model item_journal_line {
   id                      Int                 @id @default(autoincrement())
   no                      String              @unique
@@ -2513,9 +2518,8 @@ model bank_rec_line {
 model receipt_header {
   id                    Int            @id @default(autoincrement())
   no                    String         @unique
-  /// 'Member' | 'Customer' | 'Vendor' | 'G/L Account' | 'Bank Account' — AL's Receipt Type, which
-  /// also fixes what every line on the receipt may be posted to. A Member receipt takes cash for
-  /// one member: each line either tops up one of their savings accounts or repays one of their loans.
+  /// 'Employee' | 'Customer' | 'Vendor' | 'G/L Account' | 'Bank Account' — AL's Receipt Type, which
+  /// also fixes what every line on the receipt may be posted to.
   receipt_type          String         @default("G/L Account")
   posting_date          String         @default("")
   bank_account_id       Int
@@ -2538,7 +2542,7 @@ model receipt_header {
   created_by            String?
   posted_at             String?
   posted_by             String?
-  /// AL "Received Amount" — what the teller counted. Checked against the sum of the lines before
+  /// AL "Received Amount" — what the cashier counted. Checked against the sum of the lines before
   /// the receipt may be submitted, so a miskeyed line cannot post.
   received_amount       BigInt         @default(0)
   /// The Employee receipt type: money received from a member of staff.
@@ -2563,10 +2567,10 @@ model receipt_line {
   applies_to_doc_no     String?
   global_dimension_1_id Int?
   global_dimension_2_id Int?
-  /// The savings product's category — AL's "Product Posting Type", which is what decides
-  /// whether a Loan No. is required on the line.
-  /// The loan balances as quoted when the line was captured, printed on the receipt so the
-  /// member can see what was owed before their payment.
+  /// AL's "Product Posting Type", which is what decides
+  /// whether a document no. is required on the line.
+  /// The balances as quoted when the line was captured, printed on the receipt so the
+  /// payer can see what was owed before their payment.
   receipt_header        receipt_header @relation(fields: [receipt_header_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([receipt_header_id, line_no], map: "receipt_line_header_lineno_key")
@@ -2617,7 +2621,7 @@ model payment_voucher_header {
   id                       Int                    @id @default(autoincrement())
   no                       String                 @unique
   date                     String
-  /// AL's Payment Type: 'Member Payment' | 'RTGS/SWIFT' | 'Supplier Payment' | 'Customer Refund'
+  /// AL's Payment Type: 'RTGS/SWIFT' | 'Supplier Payment' | 'Customer Refund'
   /// | 'Bank Transfer' | 'Direct Expensing' | 'Payroll Settlement' | 'Remittance'. It fixes what
   /// every line on the voucher may pay, the way the AL relates Account No per Payment Type.
   pv_type                  String?
@@ -2949,7 +2953,7 @@ model financial_report {
 }
 
 // ============================================================================================
-// HR & Payroll — Employee Management (ported from "Sacco ERP" AL, object range 52203xxx).
+// HR & Payroll — Employee Management (ported from the ERP AL, object range 52203xxx).
 // See prisma/migrations/20260912000000_add_hr_employee_management for the full SQL + rationale.
 // ============================================================================================
 
@@ -3041,7 +3045,7 @@ model employee {
   /// (New card, or Employee Editing) and written onto the current employee_contract, which the
   /// payroll run reads; Contract / Salary Changes moves it the other way.
   basic_pay_cents         BigInt  @default(0)
-  /// 'Bank Transfer' | 'Cheque' | 'Cash' | 'FOSA'
+  /// 'Bank Transfer' | 'Cheque' | 'Cash' | 'M-Pesa'
   payment_mode            String  @default("Bank Transfer")
   payroll_currency_code   String?
   pays_nssf               Boolean @default(true)
@@ -3398,7 +3402,7 @@ model employee_exit_clearance_line {
 }
 
 // ============================================================================================
-// HR & Payroll — Leave Management (ported from "Sacco ERP" AL, object range 52203xxx).
+// HR & Payroll — Leave Management (ported from the ERP AL, object range 52203xxx).
 // See prisma/migrations/20260913000000_add_hr_leave_management for the full SQL + rationale.
 // ============================================================================================
 
@@ -3568,7 +3572,7 @@ model hr_leave_plan_line {
 }
 
 // ============================================================================================
-// HR & Payroll — Payroll (ported from "Sacco ERP" AL, object range 52203xxx). Posts real
+// HR & Payroll — Payroll (ported from the ERP AL, object range 52203xxx). Posts real
 // double-entry journals via postJournal() on period close — see
 // prisma/migrations/20260914000000_add_hr_payroll for the full SQL + rationale.
 // ============================================================================================
@@ -3810,7 +3814,7 @@ model gl_budget_entry {
   @@index([budget_name, gl_account_id, date], map: "ix_gl_budget_entry_lookup")
 }
 
-/// An M-Pesa payment request (STK) or paybill receipt (C2B), its match to a member account/loan and its posting (lib/mpesa).
+/// An M-Pesa payment request (STK) or paybill receipt (C2B), its match to a student's fee account and its posting (lib/mpesa).
 model mpesa_transaction {
   id                  Int      @id @default(autoincrement())
   kind                String
@@ -4080,6 +4084,8 @@ model stream {
   name             String
   /// The class teacher — an employee (HR) flagged as teaching staff.
   class_teacher_id Int?
+  /// Maximum roll; null = no limit. Placement refuses a full class.
+  capacity         Int?
   grade_level      grade_level   @relation(fields: [grade_level_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   academic_year    academic_year @relation(fields: [academic_year_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   class_teacher    employee?     @relation("stream_class_teacher", fields: [class_teacher_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
@@ -4110,12 +4116,28 @@ model subject_offering {
   @@unique([subject_id, grade_level_id], map: "ux_subject_offering")
 }
 
-/// A named grading / competency scale — "CBC Competency Scale".
+/// An elective a student takes in a year. Core subjects (subject.is_core) need no row — every
+/// student in the grade takes them; a non-core subject counts only for students listed here.
+model student_subject {
+  id               Int    @id @default(autoincrement())
+  student_id       Int
+  subject_id       Int
+  academic_year_id Int
+  created_at       String?
+  created_by       String?
+
+  @@unique([student_id, subject_id, academic_year_id], map: "ux_student_subject")
+  @@index([subject_id, academic_year_id], map: "ix_student_subject_subject_year")
+}
+
+/// A named grading / competency scale — "CBC Competency Scale", "KCSE Letter Grades", "IGCSE".
+/// Bound to an education level, or the school-wide default when none is.
 model grading_scale {
-  id              Int               @id @default(autoincrement())
-  name            String            @unique
-  is_default      Boolean           @default(false)
-  assessment_band assessment_band[]
+  id                 Int               @id @default(autoincrement())
+  name               String            @unique
+  is_default         Boolean           @default(false)
+  education_level_id Int?
+  assessment_band    assessment_band[]
 }
 
 /// One band within a grading scale — CBC's Exceeding / Meeting / Approaching / Below Expectations.
@@ -4127,6 +4149,8 @@ model assessment_band {
   max_score        Float
   sort             Int           @default(1)
   color_hex        String        @default("#64748b")
+  /// Points the band earns (KCSE A = 12 … E = 1); null on a competency scale. Report cards mean them.
+  points           Int?
   grading_scale    grading_scale @relation(fields: [grading_scale_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([grading_scale_id], map: "ix_assessment_band_scale")
@@ -4208,6 +4232,10 @@ model student {
   customer_id            Int?               @unique(map: "ux_student_customer")
   medical_notes          String?
   religion               String?
+  /// DAY | BOARDER — decides which fee items apply (fee_item.applies_to).
+  boarding_status        String             @default("DAY")
+  /// School house / dormitory, free text.
+  house                  String?
   created_at             String?
   created_by             String?
   updated_at             String?
@@ -4245,6 +4273,307 @@ model enrollment {
   academic_year    academic_year @relation(fields: [academic_year_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([student_id, academic_year_id], map: "ux_enrollment_student_year")
+}
+
+/// An optional fee item (transport, lunch, music…) a student has signed up for.
+model student_fee_option {
+  id          Int    @id @default(autoincrement())
+  student_id  Int
+  fee_item_id Int
+  /// Optional detail — the transport route, the club.
+  note        String?
+  created_at  String?
+  created_by  String?
+
+  @@unique([student_id, fee_item_id], map: "ux_student_fee_option")
+}
+
+/// A bursary, scholarship or sibling discount on a student's fees — a percentage or a fixed
+/// amount per term, on one fee item or the whole invoice, for a run of terms or indefinitely.
+model student_fee_discount {
+  id           Int     @id @default(autoincrement())
+  student_id   Int
+  /// Null = every item on the invoice.
+  fee_item_id  Int?
+  /// One of the two: a percentage of the item(s), or a fixed amount per term.
+  percent      Float   @default(0)
+  amount       BigInt  @default(0)
+  description  String
+  /// Term range (inclusive by term start date); null = open-ended.
+  from_term_id Int?
+  to_term_id   Int?
+  status       String  @default("ACTIVE")
+  created_at   String?
+  created_by   String?
+
+  @@index([student_id], map: "ix_student_fee_discount_student")
+}
+
+/// The admissions pipeline — an enquiry or application before it becomes a student.
+/// ENQUIRY | APPLIED | OFFERED | ADMITTED | DECLINED
+model admission_application {
+  id                   Int     @id @default(autoincrement())
+  no                   String  @unique
+  first_name           String
+  middle_name          String?
+  last_name            String
+  gender               String?
+  date_of_birth        String?
+  previous_school      String?
+  grade_level_id       Int
+  academic_year_id     Int
+  boarding_status      String  @default("DAY")
+  guardian_name        String
+  guardian_phone       String
+  guardian_email       String?
+  guardian_relationship String @default("Parent")
+  notes                String?
+  status               String  @default("ENQUIRY")
+  /// Set once admitted — the student record the application became.
+  student_id           Int?
+  applied_at           String
+  decided_at           String?
+  created_by           String?
+
+  @@index([status], map: "ix_admission_application_status")
+}
+
+/// ============================================================================================
+/// School services — transport, hostel and library.
+/// ============================================================================================
+
+/// A driver's road credentials — the employee (HR record) is the driver; this is what the
+/// transport office checks before assigning a bus.
+model driver_profile {
+  id              Int     @id @default(autoincrement())
+  employee_id     Int     @unique(map: "ux_driver_profile_employee")
+  licence_no      String
+  licence_class   String?
+  licence_expiry  String?
+  psv_badge_no    String?
+  psv_expiry      String?
+  notes           String?
+  created_at      String?
+}
+
+/// A school bus is a fixed asset (the FA register owns cost and depreciation); this is its
+/// operating record — registration, seats, the driver and route it is assigned to, papers.
+model school_bus {
+  id                 Int     @id @default(autoincrement())
+  fixed_asset_no     String  @unique(map: "ux_school_bus_asset")
+  registration_no    String  @unique(map: "ux_school_bus_reg")
+  make_model         String?
+  capacity           Int     @default(0)
+  driver_employee_id Int?
+  route_id           Int?
+  /// ACTIVE | WORKSHOP | RETIRED
+  status             String  @default("ACTIVE")
+  insurance_expiry   String?
+  inspection_expiry  String?
+  odometer           Int     @default(0)
+  notes              String?
+  created_at         String?
+  created_by         String?
+
+  @@index([route_id], map: "ix_school_bus_route")
+}
+
+/// A pick-up / drop-off route. Fare defaults to the TRANSPORT fee item's structure amount; a
+/// route may override it with its own termly fare.
+model transport_route {
+  id           Int     @id @default(autoincrement())
+  code         String  @unique
+  name         String
+  description  String?
+  /// Termly fare in cents; 0 = the fee structure's TRANSPORT amount for the student's grade.
+  term_fare    BigInt  @default(0)
+  status       String  @default("ACTIVE")
+  created_at   String?
+}
+
+model transport_stop {
+  id          Int     @id @default(autoincrement())
+  route_id    Int
+  name        String
+  pickup_time String?
+  dropoff_time String?
+  sort        Int     @default(1)
+
+  @@index([route_id], map: "ix_transport_stop_route")
+}
+
+/// Which route (and stop) a student rides. Assigning one also opts the student into the
+/// TRANSPORT fee item, so the next invoice run bills the fare.
+model student_transport {
+  id         Int     @id @default(autoincrement())
+  student_id Int     @unique(map: "ux_student_transport_student")
+  route_id   Int
+  stop_id    Int?
+  /// BOTH | MORNING | EVENING
+  direction  String  @default("BOTH")
+  note       String?
+  created_at String?
+  created_by String?
+
+  @@index([route_id], map: "ix_student_transport_route")
+}
+
+/// A work ticket authorises a driver to take a bus out — a route run, a trip, a workshop visit —
+/// and records the odometer and fuel on return. No. Series WORK_TICKET.
+model bus_work_ticket {
+  id                 Int     @id @default(autoincrement())
+  no                 String  @unique
+  bus_id             Int
+  driver_employee_id Int
+  route_id           Int?
+  date               String
+  /// ROUTE_RUN | TRIP | MAINTENANCE
+  purpose            String  @default("ROUTE_RUN")
+  destination        String?
+  odometer_start     Int?
+  odometer_end       Int?
+  fuel_litres        Float   @default(0)
+  fuel_cost          BigInt  @default(0)
+  /// OPEN | CLOSED | CANCELLED
+  status             String  @default("OPEN")
+  remarks            String?
+  authorised_by      String?
+  created_at         String?
+  closed_at          String?
+
+  @@index([bus_id, date], map: "ix_work_ticket_bus_date")
+  @@index([driver_employee_id, date], map: "ix_work_ticket_driver_date")
+}
+
+/// A hostel (dormitory block) — boys', girls' or mixed — with a warden from HR.
+model hostel {
+  id                 Int     @id @default(autoincrement())
+  code               String  @unique
+  name               String
+  /// MALE | FEMALE | MIXED
+  gender             String  @default("MIXED")
+  warden_employee_id Int?
+  status             String  @default("ACTIVE")
+  notes              String?
+}
+
+model hostel_room {
+  id        Int    @id @default(autoincrement())
+  hostel_id Int
+  name      String
+  floor     String?
+  sort      Int    @default(1)
+
+  @@unique([hostel_id, name], map: "ux_hostel_room")
+}
+
+model hostel_bed {
+  id      Int    @id @default(autoincrement())
+  room_id Int
+  label   String
+  /// AVAILABLE | OUT_OF_SERVICE (occupancy is a live bed_allocation)
+  status  String @default("AVAILABLE")
+
+  @@unique([room_id, label], map: "ux_hostel_bed")
+}
+
+/// Who sleeps where. One active allocation per student and per bed at a time.
+model bed_allocation {
+  id               Int     @id @default(autoincrement())
+  bed_id           Int
+  student_id       Int
+  academic_year_id Int
+  from_date        String
+  to_date          String?
+  /// ACTIVE | VACATED
+  status           String  @default("ACTIVE")
+  created_by       String?
+  created_at       String?
+
+  @@index([student_id, status], map: "ix_bed_allocation_student")
+  @@index([bed_id, status], map: "ix_bed_allocation_bed")
+}
+
+/// Library rules: how long a loan runs, the daily fine, how many books at once.
+model library_setup {
+  id                Int    @id @default(1)
+  loan_days         Int    @default(14)
+  fine_per_day      BigInt @default(0)
+  max_loans_student Int    @default(2)
+  max_loans_staff   Int    @default(5)
+  /// The income account library fines are charged to (a fee-account invoice line).
+  fine_gl_account_id Int?
+}
+
+/// A title in the catalogue; copies are the physical books.
+model library_book {
+  id         Int     @id @default(autoincrement())
+  isbn       String?
+  title      String
+  author     String?
+  publisher  String?
+  year       Int?
+  category   String?
+  /// Shelf / section.
+  location   String?
+  status     String  @default("ACTIVE")
+  created_at String?
+
+  @@index([title], map: "ix_library_book_title")
+}
+
+model library_copy {
+  id           Int    @id @default(autoincrement())
+  book_id      Int
+  accession_no String @unique(map: "ux_library_copy_accession")
+  /// AVAILABLE | ON_LOAN | LOST | DAMAGED | WITHDRAWN
+  status       String @default("AVAILABLE")
+  condition    String?
+  added_at     String?
+
+  @@index([book_id], map: "ix_library_copy_book")
+}
+
+/// A loan of one copy to a student or a member of staff.
+model library_loan {
+  id            Int     @id @default(autoincrement())
+  copy_id       Int
+  student_id    Int?
+  employee_id   Int?
+  issued_on     String
+  due_on        String
+  returned_on   String?
+  /// ON_LOAN | RETURNED | LOST
+  status        String  @default("ON_LOAN")
+  fine_amount   BigInt  @default(0)
+  /// The posted fee-account invoice the fine was charged to, when it was.
+  fine_invoice_no String?
+  issued_by     String?
+  returned_by   String?
+  remarks       String?
+
+  @@index([copy_id, status], map: "ix_library_loan_copy")
+  @@index([student_id, status], map: "ix_library_loan_student")
+  @@index([employee_id, status], map: "ix_library_loan_employee")
+}
+
+/// Discipline cases, medical visits, exeats (leave-outs) and general notes on a student.
+/// kind: DISCIPLINE | MEDICAL | EXEAT | NOTE · status: OPEN | CLOSED
+model student_incident {
+  id           Int     @id @default(autoincrement())
+  student_id   Int
+  kind         String
+  date         String
+  title        String
+  details      String?
+  action_taken String?
+  /// Exeats: when the student is expected back; medical: follow-up date.
+  follow_up    String?
+  status       String  @default("OPEN")
+  recorded_by  String?
+  recorded_at  String?
+
+  @@index([student_id, date], map: "ix_student_incident_student")
 }
 
 /// ============================================================================================
@@ -4333,6 +4662,8 @@ model fee_item {
   gl_account_id Int
   status        String          @default("ACTIVE")
   sort          Int             @default(1)
+  /// Who the item is billed to: ALL | BOARDER | DAY | OPT_IN (students signed up for it in student_fee_option).
+  applies_to    String          @default("ALL")
   gl_account    gl_account      @relation(fields: [gl_account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   fee_structure fee_structure[]
 }
@@ -4362,6 +4693,8 @@ model fee_invoice_run {
   grade_level_id   Int?
   posting_date     String
   due_date         String
+  /// Instalments: JSON [{ "pct": 60, "due_date": "2026-01-06" }, { "pct": 40, "due_date": "2026-02-15" }]; null = one invoice due on due_date.
+  instalments      String?
   /// Open | Posted
   status           String        @default("Open")
   students_billed  Int           @default(0)
@@ -4382,10 +4715,12 @@ model fee_invoice {
   /// The posted sales invoice number (posted_sales_document.no) — the document the guardian sees.
   posted_invoice_no String
   amount            BigInt          @default(0)
+  /// 1-based instalment number when the run was split; 1 for a single invoice.
+  instalment_no     Int             @default(1)
   created_at        String?
   run               fee_invoice_run @relation(fields: [run_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@unique([student_id, term_id], map: "ux_fee_invoice_student_term")
+  @@unique([student_id, term_id, instalment_no], map: "ux_fee_invoice_student_term")
   @@index([customer_id], map: "ix_fee_invoice_customer")
 }
 

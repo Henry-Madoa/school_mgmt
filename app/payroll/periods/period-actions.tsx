@@ -132,7 +132,7 @@ export function CloseButton({ id, next, className = 'btn' }: { id: number; next:
           successDetail={(d) => `Journal ${d.journalNo} posted · ${d.nextPeriodName} opened`}
         >
           <div className="note" style={{ marginBottom: 10 }}>
-            Posts the payroll journal, pays FOSA salaries and check-off loans, then closes this period and opens the next
+            Posts the payroll journal, then closes this period and opens the next
             one automatically — the current period moved on by one month. This cannot be undone from here.
           </div>
           <div className="card inset" style={{ marginBottom: 10 }}>

@@ -12,7 +12,7 @@ export interface BankAccount {
   account_no: string | null;
   balance: Cents;
   status: 'ACTIVE' | 'INACTIVE';
-  /** FOSA tellering role — see lib/cashManagement.ts. */
+  /** Cash office role — see lib/bankMgmt.ts. */
   account_type: BankAccountType;
   currency_code: string;
   balance_lcy: Cents;
@@ -87,6 +87,3 @@ export interface BankReconciliationWorksheet {
   difference: Cents;
 }
 
-/** A savings account bucketed by days since its last transaction — the SACCO-realistic
- *  stand-in for Business Central's Vendor Aging Report, which needs invoice due dates that a
- *  member's deposit account has no equivalent of. */

@@ -57,8 +57,8 @@ export function Sidebar({ org, user, allowedPaths, badges = {} }: SidebarProps) 
     setHydrated(true);
   }, []);
 
-  // Every top-level route has its own layout wrapping AppShell, so crossing from e.g. /loans to
-  // /members unmounts this column and mounts a fresh <aside> scrolled to the top. Put the scroll
+  // Every top-level route has its own layout wrapping AppShell, so crossing from e.g. /students to
+  // /fees unmounts this column and mounts a fresh <aside> scrolled to the top. Put the scroll
   // back where the user left it, then nudge only as far as needed to keep the current page's link
   // on screen. Runs once the collapse state is in so it measures the real layout.
   useLayoutEffect(() => {

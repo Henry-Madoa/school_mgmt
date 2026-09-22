@@ -3,13 +3,13 @@
  *
  *   GET    /ODataV4                                   service document
  *   GET    /ODataV4/$metadata                         EDMX (CSDL) for every published page/query/codeunit
- *   GET    /ODataV4/Members                           entity set — $filter $select $orderby $top $skip $count
- *   GET    /ODataV4/Members/$count
- *   GET    /ODataV4/Members('M00001')                 one entity (also Members(No='M00001'), Members(12))
+ *   GET    /ODataV4/Students                          entity set — $filter $select $orderby $top $skip $count
+ *   GET    /ODataV4/Students/$count
+ *   GET    /ODataV4/Students('ADM01001')              one entity (also Students(No='ADM01001'), Students(12))
  *   POST   /ODataV4/Customers                         create (JSON body of fields)
  *   PATCH  /ODataV4/Customers('C00001')               update (If-Match: the @odata.etag, or *)
  *   DELETE /ODataV4/Customers('C00001')
- *   POST   /ODataV4/SaccoIntegration_GetMemberBalance codeunit procedure as an unbound action
+ *   POST   /ODataV4/SchoolIntegration_GetFeeBalance   codeunit procedure as an unbound action
  *
  * A leading Company('Name') segment is accepted and ignored (one company here), as is ?company=.
  */
@@ -189,7 +189,7 @@ export interface ODataResult { status: number; body?: unknown; headers?: Record<
 const json = (status: number, body: unknown, extra: Partial<ODataResult> = {}): ODataResult => ({ status, body, ...extra });
 export const odataError = (status: number, code: string, message: string): ODataResult => json(status, { error: { code, message } });
 
-/** `Members('M001')` / `Members(No='M001')` / `Members(12)` → { set, key }. */
+/** `Students('ADM01001')` / `Students(No='ADM01001')` / `Students(12)` → { set, key }. */
 function parseSegment(seg: string): { set: string; key: string | null } {
   const m = seg.match(/^([A-Za-z_][A-Za-z0-9_]*)\((.*)\)$/);
   if (!m) return { set: seg, key: null };

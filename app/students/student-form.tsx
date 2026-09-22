@@ -85,6 +85,12 @@ function StudentFields({ student, lookups, countyId, setCountyId, subCountyId, s
         <Field name="religion" label="Religion" defaultValue={student?.religion} />
       </div>
       <div className="grid g3">
+        <Field name="boarding_status" label="Boarding" type="select" defaultValue={student?.boarding_status ?? 'DAY'}
+          options={[{ value: 'DAY', label: 'Day scholar' }, { value: 'BOARDER', label: 'Boarder' }]} hint="Decides which fee items are billed (boarding, day-scholar transport…)" />
+        <Field name="house" label="House / dormitory" defaultValue={student?.house} placeholder="Optional" />
+        <div />
+      </div>
+      <div className="grid g3">
         <Field name="birth_certificate_no" label="Birth certificate no." defaultValue={student?.birth_certificate_no} />
         <Field name="nemis_upi" label="NEMIS UPI" defaultValue={student?.nemis_upi} uppercase />
         <Field name="admission_date" label="Admission date" type="date" required defaultValue={student?.admission_date ?? today()} />

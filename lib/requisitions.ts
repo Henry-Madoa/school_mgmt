@@ -1,5 +1,5 @@
 /*
- * Store & Purchase Requisitions — AL (Sacco ERP) Tab52203515 "Requisition Header",
+ * Store & Purchase Requisitions — AL Tab52203515 "Requisition Header",
  * Tab52203516 "Requisition Lines", Pag52203805 "Store Requisition Card", Pag52203808 "Purchase
  * Requisition Card", Pag52203556 "Requisitions Review", Cod52203477.StoresManagement
  * (IssueStoreItems), Cod52203478.ProcurementManagement (CreatePurchaseHeader/Lines).

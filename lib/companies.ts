@@ -24,14 +24,13 @@ export const TENANT_TABLES = new Set([
 
 /**
  * Business data as opposed to setup: what "Setup data only" leaves out. A table is transactional
- * when it holds members, customers, vendors, employees, assets, items or anything posted, issued
- * or requested about them; everything else (products, charts, series, posting groups, workflows,
+ * when it holds students, customers, vendors, employees, assets, items or anything posted, issued
+ * or requested about them; everything else (fee structures, charts, series, posting groups, workflows,
  * HR/payroll rules, dimensions, setups) is setup and carries over into a production company.
  */
 const TRANSACTION_PREFIXES = [
-  'member', 'savings_account', 'loan', 'txn', 'journal', 'account_', 'collateral_application', 'collateral_register', 'collateral_release',
-  'checkoff', 'cheque_deposit', 'bankers_cheque', 'fosa_transaction', 'inter_account_transfer', 'teller_transaction', 'cash_denomination_line',
-  'standing_order', 'share_', 'dividend', 'customer', 'cust_ledger', 'detailed_cust', 'sales_header', 'sales_line', 'posted_', 'reminder_header', 'reminder_line',
+  'student', 'guardian', 'enrollment', 'attendance_record', 'assessment_record', 'report_card', 'fee_invoice', 'admission_application', 'mpesa_transaction', 'announcement',
+  'bus_work_ticket', 'bed_allocation', 'library_loan', 'journal', 'cash_denomination_line', 'customer', 'cust_ledger', 'detailed_cust', 'sales_header', 'sales_line', 'posted_', 'reminder_header', 'reminder_line',
   'vendor', 'purchase_header', 'purchase_line', 'receipt_header', 'receipt_line', 'payment_voucher', 'bank_account_ledger', 'bank_rec', 'vat_entry', 'wht_certificate',
   'item', 'stockkeeping', 'fixed_asset', 'fa_depreciation_book', 'fa_journal', 'fa_ledger', 'requisition', 'imprest_request', 'petty_cash', 'staff_claim', 'employee',
   'hr_leave_application', 'hr_leave_adjustment', 'hr_leave_plan', 'hr_leave_recall', 'hr_leave_ledger', 'payroll_period', 'payroll_p9', 'company_job',
@@ -39,8 +38,7 @@ const TRANSACTION_PREFIXES = [
 ];
 const TRANSACTION_EXCEPTIONS = new Set([
   // Setup that happens to share a prefix with business data.
-  'member_category', 'member_category_default_account', 'loan_product', 'loan_product_charge', 'loan_product_charge_scheme',
-  'customer_posting_group', 'vendor_posting_group', 'item_unit_of_measure', 'dividend_param', 'account_instruction', 'fa_class', 'fa_subclass',
+  'customer_posting_group', 'vendor_posting_group', 'item_unit_of_measure', 'fa_class', 'fa_subclass',
 ]);
 export const isTransactionTable = (t: string): boolean =>
   !TRANSACTION_EXCEPTIONS.has(t) && TRANSACTION_PREFIXES.some((p) => t === p || t.startsWith(p));
@@ -65,12 +63,12 @@ export async function defaultCompany(): Promise<Company> {
 }
 
 /** Size and a few headline counts of a company's data, for the list. */
-export async function companyStats(c: Company): Promise<{ sizeBytes: number; tables: number; members: number; loans: number; journals: number }> {
+export async function companyStats(c: Company): Promise<{ sizeBytes: number; tables: number; students: number; invoices: number; journals: number }> {
   const s = await one<{ size: number; tables: number }>(
     `SELECT COALESCE(SUM(pg_total_relation_size(quote_ident(table_schema) || '.' || quote_ident(table_name))), 0) AS size, COUNT(*) AS tables
      FROM information_schema.tables WHERE table_schema = ? AND table_type = 'BASE TABLE'`, c.schema_name);
   const n = async (t: string) => Number((await one<{ n: number }>(`SELECT COUNT(*) AS n FROM ${q(c.schema_name)}.${q(t)}`))?.n ?? 0);
-  return { sizeBytes: Number(s?.size ?? 0), tables: Number(s?.tables ?? 0), members: await n('member'), loans: await n('loan'), journals: await n('journal') };
+  return { sizeBytes: Number(s?.size ?? 0), tables: Number(s?.tables ?? 0), students: await n('student'), invoices: await n('fee_invoice'), journals: await n('journal') };
 }
 
 function directConnectionString(): string {

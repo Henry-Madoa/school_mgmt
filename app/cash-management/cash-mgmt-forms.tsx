@@ -60,7 +60,7 @@ export function BankAccountFormButton({ account, postingGroups, externalBanks, c
           <div className="grid g3">
             <Field name="minBalance" label="Minimum balance" type="currency" defaultValue={a ? String(a.min_balance / 100) : '0'} />
             <Field name="accountType" label="Account type" type="select" defaultValue={a?.account_type ?? 'OTHER'}
-              options={[{ value: 'MAIN', label: 'Main bank account' }, { value: 'TREASURY', label: 'Treasury / vault' }, { value: 'TILL', label: 'Teller till' }, { value: 'PETTY_CASH', label: 'Petty cash float' }, { value: 'OTHER', label: 'Other' }]} />
+              options={[{ value: 'MAIN', label: 'Main bank account' }, { value: 'TREASURY', label: 'Treasury / vault' }, { value: 'TILL', label: 'Cash office till' }, { value: 'PETTY_CASH', label: 'Petty cash float' }, { value: 'OTHER', label: 'Other' }]} />
             <Field name="blocked" label="Blocked" type="checkbox" defaultValue={a?.blocked ? '1' : '0'} />
             <Field name="inactive" label="Inactive" type="checkbox" defaultValue={a?.status === 'INACTIVE' ? '1' : '0'} />
           </div>

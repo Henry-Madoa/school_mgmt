@@ -19,8 +19,8 @@ type EmployeeLite = Pick<EmployeeView, 'id' | 'employee_no' | 'first_name' | 'la
 
 /** Shared by the employee list (filter options) and the employee card's inline-editable
  *  sections (app/employees/employee-info-cards.tsx) — creation and further edits both happen
- *  directly on the card, mirroring Member Application, rather than a form modal. Department is
- *  the existing Global Dimension 1/2 infrastructure (same as Members), not a bespoke master. */
+ *  directly on the card rather than a form modal. Department is
+ *  the existing Global Dimension 1/2 infrastructure, not a bespoke master. */
 export interface EmployeeLookups {
   globalDimension1Values: DimensionValue[]; globalDimension2Values: DimensionValue[];
   caption1: string; caption2: string;

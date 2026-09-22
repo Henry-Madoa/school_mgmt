@@ -29,7 +29,7 @@ export interface ReceiptHeader {
   posted_at: IsoDateTime | null;
   posted_by: string | null;
   employee_id: number | null;
-  /** AL "Received Amount" — what the teller counted, checked against the sum of the lines. */
+  /** AL "Received Amount" — what the cashier counted, checked against the sum of the lines. */
   received_amount: Cents;
 }
 

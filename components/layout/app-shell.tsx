@@ -21,7 +21,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
 
   // Resolve navigation visibility here so the browser only ever learns which
   // links to draw, not the permission list that produced them. canNav() is stricter than
-  // canPage(): a screen with a read/view action (e.g. LOANS -> LOAN_READ) is only listed when the
+  // canPage(): a screen with a read/view action (e.g. STUDENTS -> STUDENTS_READ) is only listed when the
   // user can actually read its data, not just reach the page shell.
   const allowedPaths = NAV
     .flatMap((g) => g.items.flatMap((i) => (isSubMenu(i) ? i.items : [i])))

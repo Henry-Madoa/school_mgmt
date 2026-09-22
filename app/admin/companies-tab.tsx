@@ -22,7 +22,7 @@ export async function CompaniesTab() {
         {companies.length ? (
           <TableWrap>
             <thead>
-              <tr><th>Code</th><th>Company</th><th>Kind</th><th>Assigned users</th><th>Created</th><th className="num">Members</th><th className="num">Loans</th><th className="num">Journals</th><th className="num">Size</th><th className="num" /></tr>
+              <tr><th>Code</th><th>Company</th><th>Kind</th><th>Assigned users</th><th>Created</th><th className="num">Students</th><th className="num">Fee invoices</th><th className="num">Journals</th><th className="num">Size</th><th className="num" /></tr>
             </thead>
             <tbody>
               {companies.map((c, i) => {
@@ -34,8 +34,8 @@ export async function CompaniesTab() {
                     <td>{c.is_default ? <Pill tone="info">Live</Pill> : <Pill tone="warn">Test copy</Pill>}</td>
                     <td className="tiny">{pinned[i].length ? pinned[i].map((u) => u.username).join(', ') : <span className="muted-cell">—</span>}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>{formatDate(c.created_at.slice(0, 10))}<div className="tiny muted-cell">{c.created_by}</div></td>
-                    <td className="num">{s ? s.members.toLocaleString() : '—'}</td>
-                    <td className="num">{s ? s.loans.toLocaleString() : '—'}</td>
+                    <td className="num">{s ? s.students.toLocaleString() : '—'}</td>
+                    <td className="num">{s ? s.invoices.toLocaleString() : '—'}</td>
                     <td className="num">{s ? s.journals.toLocaleString() : '—'}</td>
                     <td className="num">{s ? formatBytes(s.sizeBytes) : '—'}</td>
                     <td className="num">
@@ -55,12 +55,12 @@ export async function CompaniesTab() {
       </Card>
       <CollapsibleCard title="How companies work" defaultCollapsed>
         <DefinitionList items={[
-          ['What is copied', 'Every business table: setup, members, accounts, loans, journals and ledgers, documents, payroll, HR, web service registrations and logs — with their numbering series continuing from where the source was.'],
+          ['What is copied', 'Every business table: setup, students and guardians, fees, journals and ledgers, documents, payroll, HR, web service registrations and logs — with their numbering series continuing from where the source was.'],
           ['What is shared', 'Users, sessions, roles, permission sets, user permissions and Role Centre profiles. The same sign-in works in every company with the same rights.'],
           ['Switching', 'A user with no assignment picks a company on My Settings; it changes only which company their browser works in. A user assigned to a company on the User card always works there and cannot switch. The badge on the top bar shows the current company and marks a copy as TEST.'],
           ['Integrations', "OData and SOAP calls run in the live company unless the URL names another with the Company('CODE') / /WS/CODE/ prefix."],
           ['Schema changes', 'A copy is a snapshot: database migrations apply to the live company only. After a migration, delete old copies and copy again.'],
-          ['Setup data only', 'Products, the chart of accounts (balances zeroed), number series (restarted), charges, dimensions, posting groups, VAT, fixed-asset and HR/payroll setup, workflows and approval setup — nothing that belongs to a member, customer, vendor, employee, item or asset, and no postings.'],
+          ['Setup data only', 'Products, the chart of accounts (balances zeroed), number series (restarted), charges, dimensions, posting groups, VAT, fixed-asset and HR/payroll setup, workflows and approval setup — nothing that belongs to a student, customer, vendor, employee, item or asset, and no postings.'],
           ['Deleting', 'Deleting a company drops its data permanently and immediately. The live company can never be deleted, nor the company you are currently working in, nor one that users are still assigned to.'],
         ]} />
       </CollapsibleCard>

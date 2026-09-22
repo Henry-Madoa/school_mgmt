@@ -13,9 +13,9 @@ import { savePurchaseDocument, type PurchaseLineDraft } from '@/app/actions/paya
 import { DocFields, linesOf, type PurchaseDocLookups } from './purchase-document-form';
 import type { PurchaseDocumentDetail } from '@/lib/types';
 
-/** The purchase document's own card, editable in place — the same pattern as the member
+/** The purchase document's own card, editable in place — the same pattern as the student
  *  application and employee cards. lib/purchaseDocuments.ts replaces the whole header and every
- *  line on save (setPurchaseLines() deletes and re-inserts), so, like the loan card, this stays a
+ *  line on save (setPurchaseLines() deletes and re-inserts), so, like the sales document card, this stays a
  *  single section rather than a per-FastTab save. */
 export function PurchaseDocumentCard({ doc, lookups, canEdit }: {
   doc: PurchaseDocumentDetail; lookups: PurchaseDocLookups; canEdit: boolean;

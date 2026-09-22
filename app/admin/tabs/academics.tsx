@@ -184,27 +184,28 @@ export async function SubjectsTab() {
 }
 
 export async function GradingTab() {
-  const scales = await listGradingScales();
+  const [scales, levels] = await Promise.all([listGradingScales(), listEducationLevels()]);
   return (
     <>
       <Toolbar>
         <Spacer />
-        <GradingScaleFormButton>Add grading scale</GradingScaleFormButton>
+        <GradingScaleFormButton levels={levels}>Add grading scale</GradingScaleFormButton>
       </Toolbar>
       {scales.length ? scales.map((s) => (
         <Card key={s.id}>
-          <CardHead title={<>{s.name} {s.is_default ? <Pill tone="ok">Default</Pill> : null}</>} sub="Score bands and the competency label each one earns">
-            <GradingScaleFormButton scale={s} className="btn sm ghost">Edit</GradingScaleFormButton>{' '}
+          <CardHead title={<>{s.name} {s.is_default ? <Pill tone="ok">Default</Pill> : null} {s.education_level_name ? <Pill tone="info">{s.education_level_name}</Pill> : null}</>} sub={s.bands.some((b) => b.points != null) ? 'Letter grades with points — report cards show the mean grade' : 'Score bands and the competency label each one earns'}>
+            <GradingScaleFormButton scale={s} levels={levels} className="btn sm ghost">Edit</GradingScaleFormButton>{' '}
             {!s.is_default ? <DeleteGradingScaleButton id={s.id} /> : null}
           </CardHead>
           <TableWrap>
-            <thead><tr><th>Band</th><th className="num">From</th><th className="num">To</th></tr></thead>
+            <thead><tr><th>Band</th><th className="num">From</th><th className="num">To</th><th className="num">Points</th></tr></thead>
             <tbody>
               {s.bands.map((b) => (
                 <tr key={b.id}>
                   <td><span className="pill" style={{ background: b.color_hex, color: '#fff' }}>{b.label}</span></td>
                   <td className="num">{b.min_score}</td>
                   <td className="num">{b.max_score}</td>
+                  <td className="num">{b.points ?? '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -261,13 +262,14 @@ export async function FeeItemsTab() {
         <CardHead title="Fee items" sub="What the school bills — each item credits its own income account when a fee invoice posts" />
         {items.length ? (
           <TableWrap>
-            <thead><tr><th>Code</th><th>Fee item</th><th>Income account</th><th>Status</th><th className="num" /></tr></thead>
+            <thead><tr><th>Code</th><th>Fee item</th><th>Income account</th><th>Billed to</th><th>Status</th><th className="num" /></tr></thead>
             <tbody>
               {items.map((i) => (
                 <tr key={i.id}>
                   <td className="mono">{i.code}</td>
                   <td><b>{i.name}</b></td>
                   <td><span className="mono">{i.gl_account_code}</span> {i.gl_account_name}</td>
+                  <td>{i.applies_to === 'ALL' ? 'Everyone' : i.applies_to === 'BOARDER' ? 'Boarders' : i.applies_to === 'DAY' ? 'Day scholars' : 'Opt-in'}</td>
                   <td><Pill status={i.status} /></td>
                   <td className="num">
                     <FeeItemFormButton item={i} accounts={income} className="btn sm ghost">Edit</FeeItemFormButton>{' '}

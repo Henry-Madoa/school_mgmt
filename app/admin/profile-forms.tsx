@@ -10,7 +10,6 @@ import type { Profile } from '@/lib/types';
 const ROLE_CENTRES = [
   { value: 'SUPER', label: 'Super' },
   { value: 'SCHOOL_ADMIN', label: 'School Administration' },
-  { value: 'TEACHER', label: 'Teacher Portal' },
   { value: 'STUDENT_PARENT', label: 'Student / Parent Portal' },
   { value: 'FINANCE_MANAGER', label: 'Finance Manager' },
   { value: 'ACCOUNTANT', label: 'Accountant' },

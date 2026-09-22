@@ -7,7 +7,7 @@
  */
 import { one, all, run, tx, audit } from '../db.ts';
 import { AppError } from '../errors.ts';
-import { bandForScore, getDefaultGradingScale, listAssessmentTypes, listSubjectsForGrade } from './setup.ts';
+import { bandForScore, gradingScaleForGrade, listAssessmentTypes, listSubjectsForGrade, listSubjectsForStudent, listSubjectTakers } from './setup.ts';
 import { studentAttendanceSummary } from './attendance.ts';
 import type { Actor, AssessmentRecordView, ReportCard, ReportCardLine } from '../types.ts';
 
@@ -45,8 +45,9 @@ export async function enterMarks(
   if (st.academic_year_id !== term.academic_year_id) throw new AppError('That term is not in the class\'s academic year', 'VALIDATION');
   if (!(await listSubjectsForGrade(st.grade_level_id)).some((s) => s.id === subjectId)) throw new AppError('That subject is not offered in this grade', 'VALIDATION');
   if (!(await listAssessmentTypes()).some((t) => t.id === assessmentTypeId)) throw new AppError('Assessment type not found', 'NOT_FOUND');
-  const roster = new Set((await all<{ id: number }>("SELECT id FROM student WHERE current_stream_id = ? AND status = 'ACTIVE'", streamId)).map((r) => r.id));
-  const scale = await getDefaultGradingScale();
+  // Everyone in the class for a core subject; only those enrolled for an elective.
+  const roster = new Set((await listSubjectTakers(streamId, subjectId)).map((r) => r.id));
+  const scale = await gradingScaleForGrade(st.grade_level_id);
   const at = new Date().toISOString();
   let saved = 0; let cleared = 0;
   await tx(async () => {
@@ -81,8 +82,8 @@ export interface ReportCardView {
   student: { id: number; admission_no: string; name: string; grade_level_name: string | null; stream_name: string | null; photo: string | null };
   term: { id: number; name: string; year_name: string; start_date: string; end_date: string };
   lines: ReportCardLine[];
-  /** Mean of the subject averages — the overall standing. */
-  overall: { average: number | null; competency_label: string | null; band_color: string | null };
+  /** Mean of the subject averages — the overall standing; mean points and grade on a points scale. */
+  overall: { average: number | null; competency_label: string | null; band_color: string | null; points: number | null; mean_points: number | null; mean_grade: string | null; scale_name: string | null };
   attendance: { present: number; absent: number; late: number; excused: number; total: number; rate: number };
   /** Position in the class by overall average, of how many with marks. */
   position: { rank: number; of: number } | null;
@@ -100,17 +101,18 @@ export async function buildReportCard(studentId: number, termId: number): Promis
   );
   if (!student || !term) return undefined;
   const [marks, types, scale, card, attendance] = await Promise.all([
-    listStudentMarks(studentId, termId), listAssessmentTypes(), getDefaultGradingScale(),
+    listStudentMarks(studentId, termId), listAssessmentTypes(), gradingScaleForGrade(student.current_grade_level_id),
     one<ReportCard>('SELECT * FROM report_card WHERE student_id = ? AND term_id = ?', studentId, termId),
     studentAttendanceSummary(studentId, term.start_date, term.end_date),
   ]);
-  const subjects = student.current_grade_level_id ? await listSubjectsForGrade(student.current_grade_level_id) : [];
+  // Core subjects of the grade plus the electives this student takes (plus anything with marks).
+  const subjects = student.current_grade_level_id ? await listSubjectsForStudent(studentId) : [];
   const bySubject = new Map<number, AssessmentRecordView[]>();
   for (const m of marks) bySubject.set(m.subject_id, [...(bySubject.get(m.subject_id) ?? []), m]);
   const labelFor = (avg: number | null) => {
-    if (avg == null) return { competency_label: null, band_color: null };
+    if (avg == null) return { competency_label: null, band_color: null, points: null };
     const b = scale?.bands.find((x) => avg >= x.min_score && avg <= x.max_score);
-    return { competency_label: b?.label ?? null, band_color: b?.color_hex ?? null };
+    return { competency_label: b?.label ?? null, band_color: b?.color_hex ?? null, points: b?.points ?? null };
   };
   const subjectIds = new Set([...subjects.map((s) => s.id), ...bySubject.keys()]);
   const lines: ReportCardLine[] = [...subjectIds].map((sid) => {
@@ -130,11 +132,15 @@ export async function buildReportCard(studentId: number, termId: number): Promis
   }).sort((a, b) => a.subject_name.localeCompare(b.subject_name));
   const withMarks = lines.filter((l) => l.average != null);
   const overallAvg = withMarks.length ? Number((withMarks.reduce((a, l) => a + (l.average ?? 0), 0) / withMarks.length).toFixed(1)) : null;
+  // On a points scale (KCSE-style) the standing is also the mean points and the grade they earn.
+  const pointed = withMarks.filter((l) => l.points != null);
+  const meanPoints = pointed.length ? Number((pointed.reduce((a, l) => a + (l.points ?? 0), 0) / pointed.length).toFixed(2)) : null;
+  const meanGrade = meanPoints != null ? (scale?.bands.filter((b) => b.points != null).sort((a, b) => (b.points ?? 0) - (a.points ?? 0)).find((b) => (b.points ?? 0) <= Math.round(meanPoints))?.label ?? null) : null;
   const position = student.current_stream_id && overallAvg != null ? await classPosition(student.current_stream_id, termId, studentId) : null;
   return {
     card: card ?? null,
     student: { id: student.id, admission_no: student.admission_no, name: [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(' '), grade_level_name: student.grade_level_name, stream_name: student.stream_name, photo: student.photo },
-    term, lines, overall: { average: overallAvg, ...labelFor(overallAvg) }, attendance, position,
+    term, lines, overall: { average: overallAvg, ...labelFor(overallAvg), mean_points: meanPoints, mean_grade: meanGrade, scale_name: scale?.name ?? null }, attendance, position,
   };
 }
 

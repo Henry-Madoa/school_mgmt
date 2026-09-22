@@ -15,7 +15,7 @@ export interface ModalProps {
  * Dialog rendered into document.body.
  *
  * Escape and a backdrop click both close it; focus lands on the first control
- * so a teller can type an amount straight away, as the old modal did.
+ * so a cashier can type an amount straight away, as the old modal did.
  */
 export function Modal({ title, wide, onClose, children, footer }: ModalProps) {
   const bodyRef = useRef<HTMLDivElement>(null);

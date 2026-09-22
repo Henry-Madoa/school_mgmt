@@ -108,7 +108,7 @@ export default async function EmployeePayrollPage({ params }: { params: Promise<
           <KpiTile label={`Gross pay — ${period?.period_name}`} value={<Money cents={thisRun.basic + thisRun.allowances} />} accent={false}
             foot={<span className="tiny">Basic {(thisRun.basic / 100).toLocaleString()} · allowances {(thisRun.allowances / 100).toLocaleString()}</span>} />
           <KpiTile label="Statutory deductions" value={<Money cents={thisRun.statutory} />} accent={false} foot={<span className="tiny">PAYE, NSSF, SHIF, housing levy</span>} />
-          <KpiTile label="Other deductions" value={<Money cents={thisRun.deductions} />} accent={thisRun.deductions > 0} foot={<span className="tiny">Loans, welfare, recoveries…</span>} />
+          <KpiTile label="Other deductions" value={<Money cents={thisRun.deductions} />} accent={thisRun.deductions > 0} foot={<span className="tiny">Staff advances, welfare, recoveries…</span>} />
           <KpiTile label="Net pay" value={<Money cents={thisRun.net} />} accent
             foot={<span className="tiny">Paid by {emp.payment_mode} · employer cost +{(thisRun.employer / 100).toLocaleString()}</span>} />
         </div>

@@ -1,12 +1,12 @@
 /*
  * No. Series Management — Business Central's No. Series (Table 308), No. Series
- * Line (Table 309) and the "…Nos." setup fields, ported to this SACCO.
+ * Line (Table 309) and the "…Nos." setup fields, ported to this system.
  *
  *  - `no_series`        — the series header: Code, Description, Default/Manual Nos., Date Order.
  *  - `no_series_line`   — one or more date-effective ranges: Starting Date, Starting No.,
  *                         Ending No., Increment-by No., Warning No., Last No./Date Used, Open.
  *  - `no_series_setup`  — which series each numbered document draws from (BC keeps these on the
- *                         setup cards as "Member Nos.", "Loan Nos." … — consolidated here onto
+ *                         setup cards as "Student Nos.", "Invoice Nos." … — consolidated here onto
  *                         the Admin Centre → No. Series card).
  *
  * `getNextNo()` is the faithful GetNextNo(SeriesCode, Date, ModifySeries): find the line whose
@@ -37,6 +37,9 @@ export interface NoSeriesDocument { code: string; label: string; category: strin
  */
 export const NO_SERIES_DOCUMENTS: NoSeriesDocument[] = [
   { code: 'STUDENT', label: 'Admission No.', category: 'Academics' },
+  { code: 'ADMISSION_APPLICATION', label: 'Admission Application No.', category: 'Academics' },
+  { code: 'WORK_TICKET', label: 'Bus Work Ticket No.', category: 'Academics' },
+  { code: 'LIBRARY_BOOK', label: 'Library Accession No.', category: 'Academics' },
   { code: 'FEE_INVOICE_RUN', label: 'Fee Invoice Run No.', category: 'Academics' },
   { code: 'JOURNAL', label: 'Journal Voucher No.', category: 'Finance' },
   { code: 'JOURNAL_DRAFT', label: 'Journal Draft No.', category: 'Finance' },
@@ -163,8 +166,8 @@ export async function getNextNo(seriesCode: string, date?: string): Promise<stri
  * GetNextNo `count` times in one round trip — the same numbers, the same line advance, but the
  * series is read and written once instead of once per document.
  *
- * For a batch that issues thousands of ledger entries at a stroke (a dividend payout crediting
- * every member), asking the database for each number in turn costs more than the posting itself.
+ * For a batch that issues thousands of ledger entries at a stroke (an invoice run billing
+ * every student), asking the database for each number in turn costs more than the posting itself.
  * The numbers are still contiguous, still serialised by the same `FOR UPDATE`, and still stop at
  * the line’s Ending No.
  */
@@ -233,7 +236,7 @@ async function legacyNextSequence(name: string): Promise<string> {
 
 /**
  * The services call this with a *document* code. Resolve it to a series through `no_series_setup`
- * (so an admin can repoint "Loan No." at a different series), use the No. Series engine when one
+ * (so an admin can repoint "Student No." at a different series), use the No. Series engine when one
  * exists, and otherwise fall back to the flat `sequence` counter.
  */
 export async function nextSequence(name: string, date?: string): Promise<string> {

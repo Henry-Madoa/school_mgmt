@@ -48,7 +48,7 @@ export function WebServiceFormButton({ service, objects, className = 'btn', chil
               hint="Pages expose records (read, and where allowed create/update/delete); queries are read-only datasets; codeunits expose procedures" />
           )}
           <Field name="service_name" label="Service Name" required defaultValue={serviceName} onChange={(e) => setServiceName(e.target.value)}
-            hint="The URL segment: letters, digits and underscores — e.g. Members → /ODataV4/Members and /WS/Page/Members" />
+            hint="The URL segment: letters, digits and underscores — e.g. Students → /ODataV4/Students and /WS/Page/Students" />
           <Field name="description" label="Description" defaultValue={s?.description ?? ''} />
           <Field name="published" label="Published" type="checkbox" defaultValue={s ? (s.published ? 1 : 0) : 1}
             hint="Only a published service answers requests" />
@@ -116,7 +116,7 @@ export function GenerateKeyButton({ users, className = 'btn', children }: {
               hint="Read only refuses every create, modify, delete and posting call, whatever the user may do" />
             <Field name="expires_at" label="Expiry date" type="date" hint="Leave blank for a key that never expires" />
           </div>
-          <Field name="services" label="Limit to services" placeholder="e.g. Members, MemberBalances"
+          <Field name="services" label="Limit to services" placeholder="e.g. Students, FeeBalances"
             hint="Comma-separated service names the key may call; blank = every published service" />
           <Field name="rate_limit_per_minute" label="Requests per minute" type="number" min={1} placeholder="unlimited"
             hint="The key's own throttle, on top of the per-address limits" />

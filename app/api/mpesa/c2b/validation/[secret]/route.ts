@@ -1,7 +1,7 @@
 /*
  * POST /api/mpesa/c2b/validation/<secret> — Daraja asks whether to accept a paybill payment.
  * Every genuine payment is accepted: a wrong account number is a matching problem for the
- * M-Pesa screen, not a reason to bounce a member's money back to their phone.
+ * M-Pesa screen, not a reason to bounce a parent's money back to their phone.
  */
 import { callbackAllowed, darajaAck } from '@/lib/mpesa/callbackGuard';
 

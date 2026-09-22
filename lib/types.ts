@@ -47,3 +47,4 @@ export * from './types/50-company-organogram.ts';
 export * from './types/51-integration.ts';
 export * from './types/52-companies.ts';
 export * from './types/60-school.ts';
+export * from './types/61-services.ts';

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Tier One SACCO — application stylesheet.
+   School Management System — application stylesheet.
    Every colour, radius, font and spacing scale below resolves to a CSS custom
    property rendered into the document head from the theme record the Admin
    Centre edits. Nothing is hard-coded.
@@ -579,16 +579,9 @@ input[type=checkbox]:disabled { opacity: .5; cursor: not-allowed; }
 }
 .pill.chip button:hover { opacity: .7; }
 
-/* Loan Documents (app/loan-documents) letterhead + the Member Statement toolbar sizing
-   for its three multi-select filters. */
+/* Toolbar sizing for multi-select filters. */
 .toolbar .field.combobox { margin-bottom: 0; min-width: 220px; }
 .toolbar .field.combobox > label:empty { display: none; }
-.statement-letterhead {
-  display: flex; align-items: center; gap: calc(var(--sp) * 1.5);
-  padding-bottom: calc(var(--sp) * 1.5); margin-bottom: calc(var(--sp) * 1.5); border-bottom: 1px solid var(--border);
-}
-.statement-logo { width: 56px; height: 56px; object-fit: contain; flex: none; }
-.statement-org-name { font-weight: 650; font-size: 15px; }
 
 .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: calc(var(--sp) * 2.5); overflow-x: auto; }
 .tabs a, .tabs button {
@@ -786,13 +779,13 @@ input[type=checkbox]:disabled { opacity: .5; cursor: not-allowed; }
 }
 .upload-error { color: var(--danger); font-size: 11.5px; margin-top: 6px; }
 
-.member-photo { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; flex: none; }
-.member-photo .photo {
+.profile-photo { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; flex: none; }
+.profile-photo .photo {
   width: 52px; height: 52px; border-radius: 50%; object-fit: cover;
   background: var(--surface-2); flex: none;
 }
-.member-photo .avatar { width: 52px; height: 52px; font-size: 17px; }
-.member-photo .photo-actions { display: flex; flex-direction: column; gap: 6px; }
+.profile-photo .avatar { width: 52px; height: 52px; font-size: 17px; }
+.profile-photo .photo-actions { display: flex; flex-direction: column; gap: 6px; }
 
 .biometric-grid { display: flex; flex-direction: column; gap: calc(var(--sp) * 1.5); }
 .biometric-slot { display: flex; gap: 10px; align-items: flex-start; }
@@ -947,18 +940,7 @@ input[type=checkbox]:disabled { opacity: .5; cursor: not-allowed; }
   .sidebar, .topbar, .toolbar, .btn, .tabs, .toasts, .result-back, .nav-backdrop, .card-nav-btn, .doc-actions { display: none !important; }
   .shell { grid-template-columns: 1fr; }
   .card { border: none; padding: 0; }
-  /* Loan Documents printout: table headers repeat across a ledger that spans a page break, and a
-     single ledger row is never split across pages. (The Member Statement prints through
-     lib/documentPrint.ts, which carries its own pagination rules.) */
-  .statement-ledger thead { display: table-header-group; }
-  .statement-ledger tr { break-inside: avoid; }
-  /* Loan Documents printout (app/loan-documents): one loan's document per page. */
-  .loan-doc-block + .loan-doc-block { break-before: page; page-break-before: always; }
 }
-
-/* Loan Documents (app/loan-documents) — signature boxes, constrained so a missing signature's
-   placeholder text doesn't distort row heights in the guarantor table. */
-.signature-img { max-height: 12mm; max-width: 60mm; object-fit: contain; }
 
 /* Same rules as @media print above, applied unconditionally so a `?preview=1` tab
  * (opened by DocumentActionsMenu's Preview action, see PrintPreviewMode) shows the

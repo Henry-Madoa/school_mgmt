@@ -1,30 +1,15 @@
 import Link from 'next/link';
-import { getOrgBrand } from '@/lib/org';
 import { getTeacherRoleCenter } from '@/lib/roleCenters';
-import { getPortalLinks } from '@/lib/portal';
 import { formatDate, today } from '@/lib/format';
 import { visibleAnnouncements } from '@/lib/announcements';
-import { Page } from '@/components/layout/page';
 import { Card, CardHead, EmptyState, Pill, TableWrap } from '@/components/ui/primitives';
 import { KpiTile } from './shared';
-import type { SessionUser } from '@/lib/types';
 
-/** The Teacher Portal's landing page — today's lessons, my classes, registers and marks. */
-export async function TeacherRoleCentre({ user }: { user: SessionUser }) {
-  const org = await getOrgBrand();
-  const links = await getPortalLinks(user.id);
-  if (!links.employee_id) {
-    return (
-      <Page title="Teacher Portal" crumb={org!.name} user={user}>
-        <Card>
-          <EmptyState icon="🧑‍🏫" title="Your login is not matched to a member of staff"
-            sub="Ask an administrator to set your Employee No. under Admin Centre → System Security → User Setup, and the academics office to add you under Teaching Staff." />
-        </Card>
-      </Page>
-    );
-  }
+/** The Teacher Portal's home — today's lessons, my classes, registers and marks — rendered at the
+ *  top of the Employee Self Service Role Centre for a login marked as a teacher. */
+export async function TeacherSections({ employeeId }: { employeeId: number }) {
   const [d, notices] = await Promise.all([
-    getTeacherRoleCenter(links.employee_id),
+    getTeacherRoleCenter(employeeId),
     visibleAnnouncements({ audiences: ['STAFF', 'TEACHERS'] }, 5),
   ]);
   const totalStudents = new Set(d.classes.map((c) => c.stream_id)).size ? d.classTeacherOf.reduce((a, c) => a + c.students, 0) : 0;
@@ -32,7 +17,8 @@ export async function TeacherRoleCentre({ user }: { user: SessionUser }) {
     ? Math.round((d.classes.reduce((a, c) => a + c.marksEntered, 0) / d.classes.reduce((a, c) => a + c.marksExpected, 0)) * 100) : 0;
 
   return (
-    <Page title="Teacher Portal" crumb={`${org!.name} · ${formatDate(today())}${d.term ? ` · ${d.term.name} ${d.term.year}` : ''}`} user={user}>
+    <>
+      {d.term ? <div className="card-sub" style={{ marginBottom: 8 }}>Teacher Portal · ${d.term.name} ${d.term.year}</div> : null}
       <div className="grid g4 stack-2">
         <KpiTile label="Lessons today" value={d.today.length} foot={<Link href="/my-classes/timetable">My timetable</Link>} accent={false} />
         <KpiTile label="Classes I teach" value={d.classes.length} foot={<Link href="/my-classes">My classes</Link>} />
@@ -109,6 +95,6 @@ export async function TeacherRoleCentre({ user }: { user: SessionUser }) {
           )) : <EmptyState icon="📣" title="No notices" />}
         </Card>
       </div>
-    </Page>
+    </>
   );
 }

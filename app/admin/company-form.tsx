@@ -111,10 +111,10 @@ export function CompanyForm({ org, logoSrc, signatureSrc, mediaEnabled }: Compan
             </div>
             <Field name="motto" label="Motto or tagline" defaultValue={org.motto} />
             <div className="grid g3">
-              <Field name="society_type" label="School type" type="select"
-                defaultValue={org.society_type} options={SCHOOL_TYPES} />
+              <Field name="school_type" label="School type" type="select"
+                defaultValue={org.school_type} options={SCHOOL_TYPES} />
               <Field name="registration_no" label="Ministry of Education registration no." defaultValue={org.registration_no} />
-              <Field name="sasra_licence_no" label="Registration certificate / licence no." defaultValue={org.sasra_licence_no} />
+              <Field name="licence_no" label="Registration certificate / licence no." defaultValue={org.licence_no} />
             </div>
             <Field name="kra_pin" label="Tax PIN" defaultValue={org.kra_pin} />
           </Card>

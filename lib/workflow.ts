@@ -1353,12 +1353,17 @@ export const listApprovalUserSetup = (): Promise<ApprovalUserSetupRow[]> =>
             COALESCE(s.can_reverse_journal, 0) AS can_reverse_journal,
             s.allow_posting_from, s.allow_posting_to,
             s.allow_posting_from_time, s.allow_posting_to_time,
-            s.employee_id, e.employee_no, CASE WHEN e.id IS NULL THEN NULL ELSE e.first_name || ' ' || e.last_name END AS employee_name
+            s.employee_id, e.employee_no, CASE WHEN e.id IS NULL THEN NULL ELSE e.first_name || ' ' || e.last_name END AS employee_name,
+            COALESCE(s.is_teacher, 0) AS is_teacher,
+            s.student_id, CASE WHEN st.id IS NULL THEN NULL ELSE st.admission_no || ' — ' || st.first_name || ' ' || st.last_name END AS student_name,
+            s.guardian_id, g.full_name AS guardian_name
      FROM app_user u
      LEFT JOIN approval_user_setup s ON s.user_id = u.id
      LEFT JOIN app_user a ON a.id = s.approver_id
      LEFT JOIN app_user sub ON sub.id = s.substitute_id
      LEFT JOIN employee e ON e.id = s.employee_id
+     LEFT JOIN student st ON st.id = s.student_id
+     LEFT JOIN guardian g ON g.id = s.guardian_id
      ORDER BY u.full_name`,
   );
 
@@ -1373,6 +1378,11 @@ export interface ApprovalUserSetupInput {
   allow_posting_to_time?: string | null;
   /** AL User Setup "Employee No." — which employee this login is. */
   employee_id?: number | null;
+  /** Teaching staff: the Teacher Portal shows inside Employee Self Service. Needs an employee. */
+  is_teacher?: Flag | boolean | null;
+  /** A student or guardian login — the Student / Parent portal's subject. One login per record. */
+  student_id?: number | null;
+  guardian_id?: number | null;
 }
 
 export async function saveApprovalUserSetup(
@@ -1400,11 +1410,27 @@ export async function saveApprovalUserSetup(
       emp.email || null, emp.phone || null, userId,
     );
   }
+  const isTeacher = !!body.is_teacher;
+  if (isTeacher && !employeeId) throw new AppError('A teacher login must be matched to an employee first (Employee No.)', 'VALIDATION');
+  // The portal subjects are one-to-one too: a student or guardian has one login.
+  const studentId = body.student_id || null;
+  const guardianId = body.guardian_id || null;
+  if (studentId && guardianId) throw new AppError('A login is either a student or a guardian, not both', 'VALIDATION');
+  if (studentId) {
+    if (!(await hasAnyRow('student', 'id = ?', studentId))) throw new AppError('Student not found', 'NOT_FOUND');
+    const taken = await one<{ username: string }>('SELECT u.username FROM approval_user_setup s JOIN app_user u ON u.id = s.user_id WHERE s.student_id = ? AND s.user_id <> ?', studentId, userId);
+    if (taken) throw new AppError(`That student is already linked to user ${taken.username}`, 'DUPLICATE');
+  }
+  if (guardianId) {
+    if (!(await hasAnyRow('guardian', 'id = ?', guardianId))) throw new AppError('Guardian not found', 'NOT_FOUND');
+    const taken = await one<{ username: string }>('SELECT u.username FROM approval_user_setup s JOIN app_user u ON u.id = s.user_id WHERE s.guardian_id = ? AND s.user_id <> ?', guardianId, userId);
+    if (taken) throw new AppError(`That guardian is already linked to user ${taken.username}`, 'DUPLICATE');
+  }
   await run(
     `INSERT INTO approval_user_setup
        (user_id, approver_id, substitute_id, is_approval_administrator, can_reverse_journal,
-        allow_posting_from, allow_posting_to, allow_posting_from_time, allow_posting_to_time, employee_id)
-     VALUES (?,?,?,?,?,?,?,?,?,?)
+        allow_posting_from, allow_posting_to, allow_posting_from_time, allow_posting_to_time, employee_id, is_teacher, student_id, guardian_id)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
      ON CONFLICT (user_id) DO UPDATE SET
        approver_id = EXCLUDED.approver_id,
        substitute_id = EXCLUDED.substitute_id,
@@ -1414,13 +1440,21 @@ export async function saveApprovalUserSetup(
        allow_posting_to = EXCLUDED.allow_posting_to,
        allow_posting_from_time = EXCLUDED.allow_posting_from_time,
        allow_posting_to_time = EXCLUDED.allow_posting_to_time,
-       employee_id = EXCLUDED.employee_id`,
+       employee_id = EXCLUDED.employee_id,
+       is_teacher = EXCLUDED.is_teacher,
+       student_id = EXCLUDED.student_id,
+       guardian_id = EXCLUDED.guardian_id`,
     userId, body.approver_id || null, body.substitute_id || null,
     body.is_approval_administrator ? 1 : 0, body.can_reverse_journal ? 1 : 0,
     body.allow_posting_from || null, body.allow_posting_to || null,
     body.allow_posting_from_time || null, body.allow_posting_to_time || null,
-    employeeId,
+    employeeId, isTeacher ? 1 : 0, studentId, guardianId,
   );
+  // A teacher login is teaching staff: make sure the academics office sees them under Teaching
+  // Staff (subject assignments hang off the profile) without a second trip to that screen.
+  if (isTeacher && employeeId) {
+    await run('INSERT INTO teacher_profile (employee_id) VALUES (?) ON CONFLICT (employee_id) DO NOTHING', employeeId);
+  }
   await audit(user, 'APPROVAL_USER_SETUP_SAVE', 'approval_user_setup', userId, body);
 }
 

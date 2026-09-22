@@ -8,7 +8,7 @@ import type { Actor, OrgBrand, Organisation, Theme, ThemePreset, ThemeTokens } f
 export { TOKEN_GROUPS };
 
 const ORG_FIELDS = [
-  'name', 'short_name', 'motto', 'registration_no', 'sasra_licence_no', 'kra_pin', 'society_type',
+  'name', 'short_name', 'motto', 'registration_no', 'licence_no', 'kra_pin', 'school_type',
   'physical_address', 'postal_address', 'city', 'county', 'country', 'phone_primary', 'phone_secondary',
   'email', 'website', 'paybill_no', 'bank_name', 'bank_branch', 'bank_account_name', 'bank_account_no',
   'logo', 'currency_code',
@@ -16,7 +16,7 @@ const ORG_FIELDS = [
   'global_dimension_1_caption', 'global_dimension_2_caption',
   'allow_posting_from', 'allow_posting_to', 'receipt_approval_limit',
   'petty_cash_limit', 'max_outstanding_imprests', 'imprest_control_account_id', 'imprest_surrender_period',
-  'ceo_signature', 'ceo_name', 'bad_debt_recovery_account_id', 'mpesa_bank_account_id',
+  'ceo_signature', 'ceo_name', 'bad_debt_recovery_account_id', 'mpesa_bank_account_id', 'fee_discount_account_id',
 ] as const satisfies readonly (keyof Organisation)[];
 
 export type OrgField = (typeof ORG_FIELDS)[number];
@@ -42,7 +42,7 @@ export async function getOrgBrand(): Promise<OrgBrand | null> {
     logo: imageSrc(o.logo, { width: 96, height: 96, crop: 'fit' }),
     currency_code: o.currency_code, currency_symbol: o.currency_symbol,
     locale: o.locale, timezone: o.timezone, website: o.website,
-    phone_primary: o.phone_primary, email: o.email, sasra_licence_no: o.sasra_licence_no,
+    phone_primary: o.phone_primary, email: o.email, licence_no: o.licence_no,
   };
 }
 

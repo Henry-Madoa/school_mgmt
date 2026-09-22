@@ -10,7 +10,7 @@ import type { ActionResult } from '@/lib/types';
 /*
  * A generic "manage a repeating list of rows" editor — in place on a card (LineRowsPanel with
  * `edit`), or in a modal (LineRowsFormButton) where a card is not the context — the pattern
- * app/member-edits/view/[no]/nok-nominee-form.tsx hand-wrote once for Next of Kin and once for
+ * the employee edit forms hand-wrote once for Next of Kin and once for
  * Nominees. Employee Management needs the same shape seven times over (next of kin,
  * beneficiaries, dependants, emergency contacts, professional bodies, work history, bank
  * accounts), each in two contexts (the live employee, and an Employee Editing request) — enough

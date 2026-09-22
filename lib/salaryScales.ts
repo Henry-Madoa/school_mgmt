@@ -1,5 +1,5 @@
 /*
- * Salary Grades & Scales — ported from the Sacco ERP AL:
+ * Salary Grades & Scales — ported from the ERP AL:
  *
  *   Employee Payroll Scales (Tab52203626)   = hr_job_grade          the grade
  *   Salary Scale Pointers   (Tab52203636)   = hr_salary_scale       a notch on the grade + Basic Pay
@@ -201,7 +201,7 @@ async function conferBenefits(employeeId: number, scaleId: number | null, user: 
   let conferred = 0;
   for (const b of benefits) {
     // One line per code per period (AL's key): a line HR keyed by hand for this code stays.
-    if (await one('SELECT 1 FROM employee_payroll_transaction WHERE employee_id = ? AND payroll_period_id = ? AND transaction_code_id = ? AND loan_id IS NULL', employeeId, period.id, b.transaction_code_id)) continue;
+    if (await one('SELECT 1 FROM employee_payroll_transaction WHERE employee_id = ? AND payroll_period_id = ? AND transaction_code_id = ?', employeeId, period.id, b.transaction_code_id)) continue;
     await run(
       `INSERT INTO employee_payroll_transaction (employee_id, transaction_code_id, payroll_period_id, amount_cents, temporary, notes, salary_scale_id, created_at, created_by)
        VALUES (?,?,?,?,false,?,?,?,?)`,

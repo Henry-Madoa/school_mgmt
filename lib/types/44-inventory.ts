@@ -159,7 +159,7 @@ export interface ItemQuantityByLocationRow {
 export type ItemJournalEntryType = 'Positive Adjmt.' | 'Negative Adjmt.';
 
 /** Business Central Table 83 "Item Journal Line", scoped to Positive/Negative Adjmt. only.
- *  Lifecycle Open -> Pending Approval -> Approved -> Processed, same shape as BankersCheque. */
+ *  Lifecycle Open -> Pending Approval -> Approved -> Processed. */
 export interface ItemJournalLine {
   id: number;
   no: string;
@@ -1303,7 +1303,7 @@ export interface VendorStatementReport {
  * ========================================================================================== */
 
 /**
- * AL's Receipt Type (Enum-Ext52204000 adds Member). It is set on the header and fixes what every
+ * AL's Receipt Type. It is set on the header and fixes what every
  * line may be posted to — a Receipt Type of G/L Account takes G/L lines and nothing else.
  */
 export type ReceiptLineType = 'Employee' | 'Customer' | 'Vendor' | 'G/L Account' | 'Bank Account';
@@ -1311,12 +1311,12 @@ export type ReceiptStatus = 'Open' | 'Pending Approval' | 'Approved';
 export type PaymentVoucherLineType = 'Employee' | 'G/L Account' | 'Vendor' | 'Customer' | 'Bank Account';
 
 /**
- * AL's Payment Type (Enum-Ext52204001 adds the SACCO ones). It is set on the header and fixes
+ * AL's Payment Type. It is set on the header and fixes
  * what every line may pay — the AL relates Payment Voucher Lines."Account No" to a different
  * table per Payment Type, so a Supplier Payment pays vendors and nothing else.
  *
- * The AL's Employee Payment and EFT Loan Payment are deliberately absent: this system has no
- * employee subledger to post against, and a loan is disbursed through lib/loanService.ts's
+ * The AL's Employee Payment is deliberately absent: this system has no
+ * employee subledger to post against, and staff advances are paid through payroll's
  * disburse(), so a second path to the same money would be a way to pay it twice.
  */
 export type PaymentVoucherType =

@@ -1,5 +1,5 @@
 /*
- * Leave Management — ported from "Sacco ERP" AL. Balance is always SUM(hr_leave_ledger_entry.
+ * Leave Management — ported from the ERP AL. Balance is always SUM(hr_leave_ledger_entry.
  * quantity) for the employee/type/calendar — an append-only signed ledger, never a stored
  * mutable column. Day-counting (weekend/holiday exclusion per leave type) is one shared pure
  * function, replacing AL's logic triplicated across Leave Applications/Recall/Plan Lines.

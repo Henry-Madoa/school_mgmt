@@ -1,7 +1,7 @@
 /*
  * Withholding Tax Certificate — AL Rep52203485 "Witholding Tax Certificate". When a Payment
  * Voucher that withholds tax is posted, one certificate per distinct payee vendor is generated
- * from the WHT `vat_entry` rows. The certificate is the evidence the SACCO gives the supplier and
+ * from the WHT `vat_entry` rows. The certificate is the evidence the school gives the supplier and
  * the basis of the monthly KRA remittance.
  */
 import { one, all, run, nextSequence, audit } from './db.ts';

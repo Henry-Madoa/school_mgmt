@@ -58,6 +58,8 @@ export interface Stream {
   academic_year_id: number;
   name: string;
   class_teacher_id: number | null;
+  /** Maximum roll; null = no limit. */
+  capacity: number | null;
 }
 
 export interface StreamView extends Stream {
@@ -87,6 +89,8 @@ export interface GradingScale {
   id: number;
   name: string;
   is_default: boolean;
+  /** Bound to one education level (CBC for primary, letter grades for secondary…); null = the school-wide default. */
+  education_level_id: number | null;
 }
 
 export interface AssessmentBand {
@@ -97,10 +101,21 @@ export interface AssessmentBand {
   max_score: number;
   sort: number;
   color_hex: string;
+  /** Points the band earns (KCSE A = 12 … E = 1); null on a competency scale. */
+  points: number | null;
 }
 
 export interface GradingScaleWithBands extends GradingScale {
   bands: AssessmentBand[];
+  education_level_name?: string | null;
+}
+
+/** An elective a student takes this year. */
+export interface StudentSubject {
+  id: number;
+  student_id: number;
+  subject_id: number;
+  academic_year_id: number;
 }
 
 export interface AssessmentType {
@@ -170,6 +185,9 @@ export interface StudentGuardianView extends Guardian {
 }
 
 export type StudentStatus = 'ACTIVE' | 'GRADUATED' | 'TRANSFERRED' | 'SUSPENDED' | 'INACTIVE';
+export type BoardingStatus = 'DAY' | 'BOARDER';
+/** Who a fee item is billed to: everyone, boarders, day scholars, or students who opted in. */
+export type FeeAppliesTo = 'ALL' | 'BOARDER' | 'DAY' | 'OPT_IN';
 
 export interface Student {
   id: number;
@@ -192,6 +210,9 @@ export interface Student {
   customer_id: number | null;
   medical_notes: string | null;
   religion: string | null;
+  /** DAY | BOARDER — decides which fee items apply. */
+  boarding_status: BoardingStatus;
+  house: string | null;
   created_at: IsoDateTime | null;
   created_by: string | null;
   updated_at: IsoDateTime | null;
@@ -324,6 +345,8 @@ export interface ReportCardLine {
   average: number | null;
   competency_label: string | null;
   band_color: string | null;
+  /** Points the subject's band earns on a points scale (KCSE-style); null on a competency scale. */
+  points: number | null;
 }
 
 /* ---------------------------------------------------------------------- fees */
@@ -335,6 +358,38 @@ export interface FeeItem {
   gl_account_id: number;
   status: 'ACTIVE' | 'INACTIVE';
   sort: number;
+  applies_to: FeeAppliesTo;
+}
+
+/** An optional fee item a student has signed up for (transport, lunch, a club…). */
+export interface StudentFeeOption {
+  id: number;
+  student_id: number;
+  fee_item_id: number;
+  note: string | null;
+  created_at: IsoDateTime | null;
+  created_by: string | null;
+}
+
+/** A bursary, scholarship or sibling discount — a percentage of, or a fixed amount off, one item or the whole invoice. */
+export interface StudentFeeDiscount {
+  id: number;
+  student_id: number;
+  fee_item_id: number | null;
+  percent: number;
+  amount: Cents;
+  description: string;
+  from_term_id: number | null;
+  to_term_id: number | null;
+  status: 'ACTIVE' | 'INACTIVE';
+  created_at: IsoDateTime | null;
+  created_by: string | null;
+}
+
+export interface StudentFeeDiscountView extends StudentFeeDiscount {
+  fee_item_name: string | null;
+  from_term_name: string | null;
+  to_term_name: string | null;
 }
 
 export interface FeeItemView extends FeeItem {
@@ -357,7 +412,12 @@ export interface FeeStructureView extends FeeStructure {
   year_name: string;
   fee_item_code: string;
   fee_item_name: string;
+  fee_item_applies_to: FeeAppliesTo;
+  gl_account_code: string;
 }
+
+/** One instalment of a split fee run — a share of the term's fees with its own due date. */
+export interface FeeInstalment { pct: number; due_date: IsoDate }
 
 export interface FeeInvoiceRun {
   id: number;
@@ -367,6 +427,8 @@ export interface FeeInvoiceRun {
   grade_level_id: number | null;
   posting_date: IsoDate;
   due_date: IsoDate;
+  /** JSON FeeInstalment[]; null = one invoice due on due_date. */
+  instalments: string | null;
   status: 'Open' | 'Posted';
   students_billed: number;
   total_amount: Cents;
@@ -390,6 +452,7 @@ export interface FeeInvoice {
   term_id: number;
   posted_invoice_no: string;
   amount: Cents;
+  instalment_no: number;
   created_at: IsoDateTime | null;
 }
 

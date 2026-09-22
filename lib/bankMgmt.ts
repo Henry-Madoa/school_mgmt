@@ -37,7 +37,7 @@ export const getBankAccountByCode = (code: string): Promise<BankAccountListRow |
   one<BankAccountListRow>(`${BA_SELECT} WHERE ba.code = ?`, code);
 
 /** Every enabled Bank/Cashbook account — the Payment Channel picklist for a manual external
- *  loan disbursement/repayment, or any document that lets its user pick which of the SACCO's own
+ *  a fee receipt, or any document that lets its user pick which of the school's own
  *  bank/cash/mobile-money accounts a posting moved through. */
 export const listActiveBankAccounts = (): Promise<BankAccount[]> =>
   all<BankAccount>("SELECT * FROM bank_account WHERE status = 'ACTIVE' ORDER BY code");
@@ -77,7 +77,7 @@ async function resolveControlAccount(input: BankAccountInput): Promise<number> {
 
 /** Creating a bank account also flags its control account no_direct_posting — from that point a
  *  manual G/L journal can no longer touch it; only postJournal()'s automatic subledger posting
- *  (savings/loan/charge callers, Cash Management documents, Bank Reconciliation adjustments) can. */
+ *  (Receivables and Payables postings, Cash Management documents, Bank Reconciliation adjustments) can. */
 export async function createBankAccount(input: BankAccountInput, user: Actor): Promise<{ id: number }> {
   const code = input.code.trim().toUpperCase();
   const name = input.name.trim();

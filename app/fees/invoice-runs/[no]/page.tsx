@@ -31,7 +31,7 @@ export default async function FeeInvoiceRunPage({ params }: { params: Promise<{ 
 
       <div className="grid g4">
         <Stat label={posted ? 'Students billed' : 'Students to bill'} value={String(posted ? run.students_billed : preview?.toBill ?? 0)} accent={false} />
-        <Stat label={posted ? 'Total invoiced' : 'Total to invoice'} value={<Money cents={posted ? run.total_amount : preview?.total ?? 0} />} />
+        <Stat label={posted ? 'Total invoiced' : 'Total to invoice'} value={<Money cents={posted ? run.total_amount : preview?.total ?? 0} />} foot={!posted && preview?.discounts ? <>after <Money cents={preview.discounts} /> in discounts</> : undefined} />
         <Stat label="Still open" value={<Money cents={posted ? open : 0} />} accent={posted && open > 0} foot={posted ? `${invoices.filter((i) => i.remaining_amount > 0).length} unpaid` : undefined} />
         <Stat label="Due date" value={formatDate(run.due_date)} accent={false} foot={`Posting ${formatDate(run.posting_date)}`} />
       </div>
@@ -76,13 +76,16 @@ export default async function FeeInvoiceRunPage({ params }: { params: Promise<{ 
           </TableWrap>
         ) : <EmptyState icon="🧾" title="No invoices on this run" />) : (preview?.lines.length ? (
           <TableWrap>
-            <thead><tr><th>Adm. No.</th><th>Student</th><th>Grade</th><th className="num">Amount</th><th /></tr></thead>
+            <thead><tr><th>Adm. No.</th><th>Student</th><th>Grade</th><th>Boarding</th><th className="num">Fees</th><th className="num">Discount</th><th className="num">To invoice</th><th /></tr></thead>
             <tbody>
               {preview.lines.map((l) => (
                 <tr key={l.student_id} className={l.already_invoiced || !l.amount ? 'muted' : undefined}>
                   <td className="mono"><Link href={`/students/view/${l.student_id}`}>{l.admission_no}</Link></td>
                   <td>{l.student_name}</td>
                   <td>{l.grade_level_name}</td>
+                  <td>{l.boarding_status === 'BOARDER' ? 'Boarder' : 'Day'}</td>
+                  <td className="num"><Money cents={l.gross} /></td>
+                  <td className="num">{l.discount ? <>(<Money cents={l.discount} />)</> : '—'}</td>
                   <td className="num"><Money cents={l.amount} /></td>
                   <td>{l.already_invoiced ? <Pill tone="info">Already invoiced</Pill> : !l.amount ? <Pill tone="warn">No fee structure</Pill> : null}</td>
                 </tr>

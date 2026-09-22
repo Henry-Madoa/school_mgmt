@@ -627,7 +627,7 @@ export async function closePayrollPeriod(id: number, nextOverride: { periodName?
     if (nextPeriod.startDate <= period.end_date) throw new AppError('The next period must start after this one ends', 'VALIDATION');
     if (await one('SELECT 1 FROM payroll_period WHERE period_name = ?', nextPeriod.periodName)) throw new AppError(`A period named ${nextPeriod.periodName} already exists`, 'DUPLICATE');
     // Post first, close second: the journal (checked once more — an account may have been
-    // retired since approval), then the SACCO side; only then the next period and CLOSED. All
+    // retired since approval); only then the next period and CLOSED. All
     // inside one transaction, so a failure anywhere leaves the period Approved and untouched.
     await assertPayrollJournalPostable(id);
 
@@ -960,7 +960,7 @@ export async function getPayrollRegister(periodId: number): Promise<PayrollRegis
 
 export interface DeductionsReportRow { employeeId: number; employeeNo: string; name: string; code: string; codeName: string; amountCents: number }
 
-/** Deductions Report — every non-statutory deduction line (loans, welfare, insurance, ...) per
+/** Deductions Report — every non-statutory deduction line (advances, welfare, insurance, ...) per
  *  employee, for remitting to whichever third party each code represents. */
 export async function getDeductionsReport(periodId: number): Promise<DeductionsReportRow[]> {
   const rows = await all<{ employee_id: number; employee_no: string; name: string; code: string; code_name: string; amount: number }>(

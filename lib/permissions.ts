@@ -4,13 +4,13 @@
  * A role's access is a set of lines, each granting rights on one Object:
  * a database Table (Read/Insert/Modify/Delete) or an application Page (an
  * Execute right — can this screen be reached at all). Business verbs like
- * "disburse a loan" aren't single-table CRUD (disburseLoan() posts a journal,
+ * "post a receipt" aren't single-table CRUD (postReceipt() posts a journal,
  * rewrites the repayment schedule, and moves two balances in one
  * transaction) so a literal 1:1 swap of "permission string" for "table
  * right" can't express them. ACTIONS below is the bridge: one named grant of
  * (owning page, table rights[]) per business operation, built directly from
  * an inventory of what each of the app's server actions actually reads and
- * writes. A call site asks for one action (`requireAction('LOAN_DISBURSE')`)
+ * writes. A call site asks for one action (`requireAction('FEES_INVOICE_POST')`)
  * and both the page Execute right and every table right it lists are
  * checked together — but the *admin-configurable unit*, in the Permission
  * Set editor, is genuinely the table and the page, not this registry.
@@ -159,6 +159,11 @@ export const PAGES: PageObject[] = [
   { code: 'ADMIN_OUTBOX', label: 'Message Outbox', route: '/admin/data/outbox' },
   // Academics — the school modules (lib/students.ts, lib/academics.ts, lib/fees/*).
   { code: 'STUDENTS', label: 'Students', route: '/students' },
+  { code: 'ADMISSIONS', label: 'Admissions (Applications)', route: '/admissions' },
+  { code: 'INCIDENTS', label: 'Student Incidents (Discipline, Medical, Exeats)', route: '/incidents' },
+  { code: 'TRANSPORT', label: 'Transport (Routes, Buses, Drivers, Work Tickets)', route: '/transport' },
+  { code: 'HOSTEL', label: 'Hostel (Beds & Allocations)', route: '/hostel' },
+  { code: 'LIBRARY', label: 'Library (Catalogue & Loans)', route: '/library' },
   { code: 'GUARDIANS', label: 'Guardians', route: '/guardians' },
   { code: 'TEACHERS', label: 'Teaching Staff', route: '/teachers' },
   { code: 'CLASSES', label: 'Classes (Streams)', route: '/classes' },
@@ -230,22 +235,22 @@ export interface ActionGrant {
 /**
  * One entry per surviving business operation from the old resource:action
  * catalogue. Where a single old permission string served more than one
- * physically distinct screen (MEMBER:READ gated Members, Member Application
- * *and* Member Editing alike), it is split per page here — otherwise a
+ * physically distinct screen (one READ gated the list, the application
+ * *and* the edit request alike), it is split per page here — otherwise a
  * role granted access to one of those screens would silently reach all
  * three, which defeats the point of per-page Execute rights.
  *
  * Two known bugs in the old catalogue are fixed as a side effect, not
  * carried forward: `ADMIN:CHANGE_LOG_MANAGE` was checked at 4 call sites but
  * never actually granted by any literal permission (only by the `*`
- * wildcard) — ADMIN_CHANGE_LOG_MANAGE below is real. `LOAN:WRITE_OFF` and
+ * wildcard) — ADMIN_CHANGE_LOG_MANAGE below is real. `FEES:WRITE_OFF` and
  * `REPORT:EXPORT` were declared and seeded but never checked anywhere —
  * dropped, nothing maps to them.
  */
 export const ACTIONS = {
 
   // M-Pesa — paybill receipts and STK payment requests (lib/mpesa). _INITIATE sends a request to
-  // a handset; _ALLOCATE points an unmatched receipt at an account/loan and posts it.
+  // a handset; _ALLOCATE points an unmatched receipt at a student's fee account and posts it.
   MPESA_READ: { page: 'MPESA', tables: [['mpesa_transaction', 'read']] },
   MPESA_INITIATE: { page: 'MPESA', tables: [['mpesa_transaction', 'insert']] },
   MPESA_ALLOCATE: {
@@ -758,6 +763,32 @@ export const ACTIONS = {
     page: 'STUDENTS',
     tables: [['student', 'modify'], ['student_guardian', 'insert'], ['student_guardian', 'delete'], ['guardian', 'modify'], ['enrollment', 'insert'], ['enrollment', 'modify'], ['customer', 'modify'], ['attachment', 'insert'], ['attachment', 'delete']],
   },
+  ADMISSIONS_READ: { page: 'ADMISSIONS', tables: [['admission_application', 'read']] },
+  /** Enquiries, applications, offers — and admitting one, which creates the student like STUDENTS_CREATE does. */
+  ADMISSIONS_MANAGE: {
+    page: 'ADMISSIONS',
+    tables: [['admission_application', 'insert'], ['admission_application', 'modify'], ['student', 'insert'], ['student_guardian', 'insert'], ['guardian', 'insert'], ['enrollment', 'insert'], ['customer', 'insert']],
+  },
+  INCIDENTS_READ: { page: 'INCIDENTS', tables: [['student_incident', 'read']] },
+  TRANSPORT_READ: { page: 'TRANSPORT', tables: [['transport_route', 'read'], ['transport_stop', 'read'], ['school_bus', 'read'], ['driver_profile', 'read'], ['student_transport', 'read'], ['bus_work_ticket', 'read'], ['fixed_asset', 'read']] },
+  /** Routes, stops, buses, drivers and which students ride — the transport office. */
+  TRANSPORT_MANAGE: {
+    page: 'TRANSPORT',
+    tables: [['transport_route', 'insert'], ['transport_route', 'modify'], ['transport_route', 'delete'], ['transport_stop', 'insert'], ['transport_stop', 'modify'], ['transport_stop', 'delete'],
+      ['school_bus', 'insert'], ['school_bus', 'modify'], ['driver_profile', 'insert'], ['driver_profile', 'modify'], ['driver_profile', 'delete'], ['student_transport', 'insert'], ['student_transport', 'modify'], ['student_transport', 'delete'], ['student_fee_option', 'insert'], ['student_fee_option', 'delete']],
+  },
+  /** Opening, closing and cancelling work tickets — the transport office or the driver's supervisor. */
+  TRANSPORT_WORK_TICKETS: { page: 'TRANSPORT', tables: [['bus_work_ticket', 'insert'], ['bus_work_ticket', 'modify'], ['school_bus', 'modify']] },
+  HOSTEL_READ: { page: 'HOSTEL', tables: [['hostel', 'read'], ['hostel_room', 'read'], ['hostel_bed', 'read'], ['bed_allocation', 'read']] },
+  HOSTEL_MANAGE: { page: 'HOSTEL', tables: [['hostel', 'insert'], ['hostel', 'modify'], ['hostel_room', 'insert'], ['hostel_room', 'modify'], ['hostel_room', 'delete'], ['hostel_bed', 'insert'], ['hostel_bed', 'modify'], ['hostel_bed', 'delete'], ['bed_allocation', 'insert'], ['bed_allocation', 'modify']] },
+  LIBRARY_READ: { page: 'LIBRARY', tables: [['library_setup', 'read'], ['library_book', 'read'], ['library_copy', 'read'], ['library_loan', 'read']] },
+  /** The catalogue and the loan desk — issue, return, fines. */
+  LIBRARY_MANAGE: { page: 'LIBRARY', tables: [['library_book', 'insert'], ['library_book', 'modify'], ['library_copy', 'insert'], ['library_copy', 'modify'], ['library_loan', 'insert'], ['library_loan', 'modify']] },
+  /** Library rules and the fines account, and charging a fine to a student's fee account. */
+  LIBRARY_SETUP_MANAGE: { page: 'LIBRARY', tables: [['library_setup', 'insert'], ['library_setup', 'modify'], ['sales_header', 'insert'], ['sales_line', 'insert']] },
+  INCIDENTS_MANAGE: { page: 'INCIDENTS', tables: [['student_incident', 'insert'], ['student_incident', 'modify'], ['student_incident', 'delete']] },
+  /** Electives a student takes — set on the student card by the academics office. */
+  STUDENTS_SUBJECTS_MANAGE: { page: 'STUDENTS', tables: [['student_subject', 'insert'], ['student_subject', 'delete']] },
   GUARDIANS_READ: { page: 'GUARDIANS', tables: [['guardian', 'read'], ['student_guardian', 'read']] },
   GUARDIANS_MANAGE: { page: 'GUARDIANS', tables: [['guardian', 'insert'], ['guardian', 'modify'], ['guardian', 'delete']] },
   TEACHERS_READ: { page: 'TEACHERS', tables: [['teacher_profile', 'read'], ['employee', 'read'], ['teacher_subject_assignment', 'read']] },
@@ -835,6 +866,7 @@ export const ACTIONS = {
       ['student', 'read'], ['guardian', 'read'], ['student_guardian', 'read'], ['enrollment', 'read'], ['timetable_slot', 'read'],
       ['assessment_record', 'read'], ['report_card', 'read'], ['attendance_record', 'read'], ['announcement', 'read'],
       ['customer', 'read'], ['cust_ledger_entry', 'read'], ['posted_sales_document', 'read'], ['fee_invoice', 'read'],
+      ['student_transport', 'read'], ['transport_route', 'read'], ['transport_stop', 'read'], ['school_bus', 'read'], ['bed_allocation', 'read'], ['hostel_bed', 'read'], ['hostel_room', 'read'], ['hostel', 'read'], ['library_loan', 'read'], ['library_copy', 'read'], ['library_book', 'read'],
     ],
   },
   /** Pay fees from the portal — an M-Pesa STK push to the parent's own phone for their own child. */
@@ -871,7 +903,7 @@ export const ACTIONS = {
     tables: [['employee', 'modify'], ['employee_contract', 'insert'], ['employee_contract', 'modify']],
   },
 
-  // Employee Editing — mirrors MEMBER_EDITS_READ/_UPDATE/_APPROVE.
+  // Employee Editing — request, review and approve changes to an employee record.
   EMPLOYEE_EDITS_READ: { page: 'EMPLOYEE_EDITS', tables: [['employee_edit_request', 'read']] },
   EMPLOYEE_EDITS_UPDATE: {
     page: 'EMPLOYEE_EDITS',
@@ -1050,7 +1082,7 @@ export const ACTIONS = {
 
   // Payroll (see lib/payroll.ts). _RUN computes/re-computes a period's payslip lines (no G/L
   // effect yet); _APPROVE decides the period; _CLOSE posts the journal and rolls recurring
-  // transactions into the next period — the same tier CASH_MANAGEMENT_POST/LOAN_DISBURSE carry.
+  // transactions into the next period — the same tier CASH_MANAGEMENT_POST carries.
   PAYROLL_READ: {
     page: 'PAYROLL',
     tables: [['employee_payroll_transaction', 'read'], ['payroll_period_transaction', 'read'], ['payroll_p9_line', 'read']],
@@ -1303,8 +1335,8 @@ const PAGE_VIEW_ACTION: Partial<Record<string, ActionKey>> = (() => {
 
 /**
  * Whether a navigation entry for `pages` should appear in the sidebar. Stricter than a bare
- * `canPage`: if a screen has a read/view action (e.g. `LOAN_READ` bundles page `LOANS` + table
- * `loan` read), the user must satisfy that too — so a permission set that grants page Execute but
+ * `canPage`: if a screen has a read/view action (e.g. `STUDENTS_READ` bundles page `STUDENTS` + table
+ * `student` read), the user must satisfy that too — so a permission set that grants page Execute but
  * not the underlying table Read no longer surfaces a module the user cannot actually use. Falls
  * back to `canPage` for screens with no read/view action (admin setup pages).
  */
@@ -1313,6 +1345,9 @@ export function canNav(user: SessionUser | null | undefined, pages: string | str
   if (user.is_system) return true;
   const codes = Array.isArray(pages) ? pages : [pages];
   return codes.some((code) => {
+    // The Teacher Portal lives inside Employee Self Service and shows only for a login the User
+    // Setup marks as teaching staff — the permission alone is not enough.
+    if (code === 'TEACHER_PORTAL' && !user.isTeacher) return false;
     if (!canPage(user, code)) return false;
     const view = PAGE_VIEW_ACTION[code];
     return view ? canAction(user, view) : true;

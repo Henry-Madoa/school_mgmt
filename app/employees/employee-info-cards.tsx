@@ -14,7 +14,7 @@ import type { EmployeeLookups } from './employee-actions';
 import type { EmployeeView } from '@/lib/types';
 import { EmailLink, PhoneLink } from '@/components/ui/contact-link';
 
-/** Inline card-editing, mirroring app/member-applications/view/[no]/info-cards.tsx's pattern:
+/** Inline card-editing:
  *  an Edit button swaps the card's read-only DefinitionList for its own <form>, Save posts just
  *  that section's fields (lib/employees.ts's updateEmployee() only touches fields it's given). */
 function useInlineEdit(id: number, startEditing = false) {

@@ -1,5 +1,5 @@
 /*
- * Employee Management — the core staff master, ported from "Sacco ERP" AL (Employee table +
+ * Employee Management — the core staff master, ported from the ERP AL (Employee table +
  * extension, object range 52203xxx). Lifecycle: New -> Pending Approval -> Active, then
  * -> On Leave / Pending Final Payment / Inactive / Terminated as other modules (Leave
  * Management, Employee Exit, Payroll) drive it. Only a New record is directly editable — once

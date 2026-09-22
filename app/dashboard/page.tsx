@@ -1,7 +1,6 @@
 import { requireAction } from '@/lib/session';
 import { SuperRoleCentre } from './centres/super';
 import { SchoolAdminRoleCentre } from './centres/school-admin';
-import { TeacherRoleCentre } from './centres/teacher';
 import { StudentParentRoleCentre } from './centres/student-parent';
 import { FinanceManagerRoleCentre } from './centres/finance-manager';
 import { AccountantRoleCentre } from './centres/accountant';
@@ -18,7 +17,6 @@ export default async function DashboardPage() {
   const user = await requireAction('DASHBOARD_VIEW');
   switch (user.activeProfile.role_centre) {
     case 'SCHOOL_ADMIN': return <SchoolAdminRoleCentre user={user} />;
-    case 'TEACHER': return <TeacherRoleCentre user={user} />;
     case 'STUDENT_PARENT': return <StudentParentRoleCentre user={user} />;
     case 'FINANCE_MANAGER': return <FinanceManagerRoleCentre user={user} />;
     case 'ACCOUNTANT': return <AccountantRoleCentre user={user} />;

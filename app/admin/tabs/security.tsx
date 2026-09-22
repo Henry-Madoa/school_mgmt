@@ -19,6 +19,7 @@ import { RoleFormButton, RoleRow } from '../role-form';
 import { ProfileFormButton, DeleteProfileButton } from '../profile-forms';
 import { ApprovalUserSetupFormButton } from '../approval-user-setup-form';
 import { listActiveEmployees } from '@/lib/employees';
+import { listActiveStudentsPick, listGuardians } from '@/lib/students';
 import { UserSignatureButton } from '../user-signature-form';
 import { ChangeLogSetupTable } from '../change-log-setup-table';
 import { listCompanies } from '@/lib/companies';
@@ -180,24 +181,30 @@ export async function ProfilesTab() {
 }
 
 export async function ApprovalUserSetupTab() {
-  const [rows, employees] = await Promise.all([listApprovalUserSetup(), listActiveEmployees()]);
+  const [rows, employees, students, guardians] = await Promise.all([listApprovalUserSetup(), listActiveEmployees(), listActiveStudentsPick(), listGuardians()]);
+  const guardianPicks = guardians.map((g) => ({ id: g.id, full_name: g.full_name, phone: g.phone }));
   const mediaEnabled = isConfigured();
 
   return (
     <Card>
       <CardHead
         title="User setup"
-        sub="Which employee each login is (Employee Self Service), who approves each user's requests, their substitute, fallback approval administrators, per-user posting-date overrides, and the signature stamped onto documents they approve"
+        sub="Who each login is — the employee behind it (Employee Self Service, and Teacher for the Teacher Portal) or the student / guardian (the portal) — who approves each user's requests, their substitute, fallback approval administrators, per-user posting-date overrides, and the signature stamped onto documents they approve"
       />
       <TableWrap>
         <thead>
-          <tr><th>User</th><th>Employee</th><th>Approver</th><th>Substitute</th><th>Approval admin</th><th>Can Reverse Journal</th><th>Posting window</th><th>Signature</th><th className="num" /></tr>
+          <tr><th>User</th><th>Employee / portal</th><th>Approver</th><th>Substitute</th><th>Approval admin</th><th>Can Reverse Journal</th><th>Posting window</th><th>Signature</th><th className="num" /></tr>
         </thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r.user_id}>
               <td><b>{r.full_name}</b> <span className="tiny">({r.username})</span></td>
-              <td>{r.employee_no ? <><span className="mono">{r.employee_no}</span> <span className="tiny">{r.employee_name}</span></> : <span className="tiny muted-cell">Not linked</span>}</td>
+              <td>
+                {r.employee_no ? <><span className="mono">{r.employee_no}</span> <span className="tiny">{r.employee_name}</span>{r.is_teacher ? <> <Pill tone="ok">Teacher</Pill></> : null}</>
+                  : r.student_name ? <><Pill tone="info">Student</Pill> <span className="tiny">{r.student_name}</span></>
+                    : r.guardian_name ? <><Pill tone="info">Guardian</Pill> <span className="tiny">{r.guardian_name}</span></>
+                      : <span className="tiny muted-cell">Not linked</span>}
+              </td>
               <td>{r.approver_name || '—'}</td>
               <td>{r.substitute_name || '—'}</td>
               <td>{r.is_approval_administrator ? <Pill tone="info">YES</Pill> : '—'}</td>
@@ -220,7 +227,7 @@ export async function ApprovalUserSetupTab() {
                 </div>
               </td>
               <td className="num">
-                <ApprovalUserSetupFormButton row={r} users={rows} employees={employees} className="btn sm ghost">Edit</ApprovalUserSetupFormButton>
+                <ApprovalUserSetupFormButton row={r} users={rows} employees={employees} students={students} guardians={guardianPicks} className="btn sm ghost">Edit</ApprovalUserSetupFormButton>
               </td>
             </tr>
           ))}

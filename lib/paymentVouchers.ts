@@ -280,7 +280,7 @@ async function resolveLine(
   if (!acc || !acc.is_postable || acc.status !== 'ACTIVE') throw new AppError(`G/L account ${no} is not an active posting account`, 'VALIDATION');
   if (acc.no_direct_posting) throw new AppError(`G/L account ${no} is a subledger control account`, 'VALIDATION');
   // AL restricts Payroll Settlement and Remittance to Liabilities — what those vouchers settle is
-  // something the SACCO is already holding on someone else's behalf.
+  // something the school is already holding on someone else's behalf.
   if (rule.glType && acc.type !== rule.glType) {
     throw new AppError(`A ${rule.label} settles a ${rule.glType.toLowerCase()} account; ${no} is ${acc.type.toLowerCase()}`, 'VALIDATION');
   }

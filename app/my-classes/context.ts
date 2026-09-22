@@ -2,7 +2,7 @@ import 'server-only';
 import { all } from '@/lib/db';
 import { getPortalLinks } from '@/lib/portal';
 import { getCurrentAcademicYear, getCurrentTerm, listStreams } from '@/lib/academics/setup';
-import { isTeacher, listTeacherAssignments } from '@/lib/academics/teachers';
+import { listTeacherAssignments } from '@/lib/academics/teachers';
 import type { AcademicTermWithYear, AcademicYear, SessionUser, StreamView, TeacherAssignmentView } from '@/lib/types';
 
 export interface TeacherContext {
@@ -22,7 +22,7 @@ export interface TeacherContext {
 export async function loadTeacherContext(user: SessionUser): Promise<TeacherContext | { error: string }> {
   const links = await getPortalLinks(user.id);
   if (!links.employee_id) return { error: 'Your login is not matched to a member of staff — ask an administrator to set your Employee No. under Admin Centre → System Security → User Setup.' };
-  if (!(await isTeacher(links.employee_id))) return { error: 'Your staff record is not flagged as teaching staff — ask the academics office to add you under Teaching Staff.' };
+  if (!links.is_teacher) return { error: 'Your login is not marked as a teacher — ask an administrator to tick Teacher under Admin Centre → User Setup.' };
   const teacherId = links.employee_id;
   const [year, term] = await Promise.all([getCurrentAcademicYear(), getCurrentTerm()]);
   const [assignments, all_streams, classTeacherOf] = await Promise.all([

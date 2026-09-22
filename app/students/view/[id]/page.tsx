@@ -22,6 +22,17 @@ import { NewReceiptButton } from '@/app/cash-management/receipt-form';
 import { EditStudentForm } from '../../student-form';
 import { StudentStatusButton, PlaceStudentButton, StudentPhoto } from '../../student-actions';
 import { SendReminderButton } from '@/app/fees/fee-actions';
+import { listStudentFeeOptions, listStudentFeeDiscounts, studentBill } from '@/lib/fees/billing';
+import { listActiveFeeItems } from '@/lib/fees/setup';
+import { FeeOptionsForm, DiscountsTable } from '../../fee-options';
+import { IncidentsCard } from '../../incidents-card';
+import { ElectivesCard } from '../../electives-card';
+import { listStudentIncidents } from '@/lib/incidents';
+import { listSubjectsForGrade, listSubjectsForStudent } from '@/lib/academics/setup';
+import { getStudentTransport, listRoutes } from '@/lib/transport';
+import { studentBed, listBeds } from '@/lib/hostel';
+import { studentLoans } from '@/lib/library';
+import { ServicesCard } from '../../services-card';
 
 export default async function StudentPage({ params, searchParams }: {
   params: Promise<{ id: string }>;
@@ -48,6 +59,15 @@ export default async function StudentPage({ params, searchParams }: {
     term ? listStudentMarks(id, term.id) : Promise.resolve([]), listPublishedTerms(id), listAttachments('student', id),
   ]);
   const fp = canReceipt ? await docFormProps() : null;
+  const [feeOptions, discounts, feeItems, canFeeSetup, allTerms, incidents, canIncidents, canIncidentsManage, offered, taken, canElectives] = await Promise.all([
+    listStudentFeeOptions(id), listStudentFeeDiscounts(id), listActiveFeeItems(), currentCanAction('FEES_STRUCTURE_MANAGE'), listTerms(),
+    listStudentIncidents(id), currentCanAction('INCIDENTS_READ'), currentCanAction('INCIDENTS_MANAGE'),
+    student.current_grade_level_id ? listSubjectsForGrade(student.current_grade_level_id) : Promise.resolve([]), listSubjectsForStudent(id), currentCanAction('STUDENTS_SUBJECTS_MANAGE'),
+  ]);
+  const [ride, routes, canTransport, bed, beds, canHostel, loans, canLibrary] = await Promise.all([
+    getStudentTransport(id), listRoutes(), currentCanAction('TRANSPORT_MANAGE'), studentBed(id), listBeds(), currentCanAction('HOSTEL_MANAGE'), studentLoans(id), currentCanAction('LIBRARY_MANAGE'),
+  ]);
+  const nextBill = term && student.current_grade_level_id ? await studentBill({ id, grade_level_id: student.current_grade_level_id, boarding_status: student.boarding_status }, term.id) : null;
   const name = `${student.first_name} ${student.middle_name ? `${student.middle_name} ` : ''}${student.last_name}`;
   const className = student.grade_level_name ? `${student.grade_level_name} ${student.stream_name ?? ''}`.trim() : null;
   const primary = student.guardians.find((g) => g.is_primary) ?? student.guardians[0];
@@ -63,6 +83,8 @@ export default async function StudentPage({ params, searchParams }: {
         <Spacer />
         {canPlace && student.status === 'ACTIVE' ? <PlaceStudentButton id={id} streams={streams} currentStreamId={student.current_stream_id} /> : null}
         {canEdit ? <StudentStatusButton id={id} current={student.status} /> : null}
+        <Link href={`/print/student-id/${id}`} className="btn ghost" target="_blank">ID card</Link>
+        {student.status !== 'ACTIVE' ? <Link href={`/print/leaving-certificate/${id}`} className="btn ghost" target="_blank">Leaving certificate</Link> : null}
         {canRemind && fees && fees.balance > 0 ? <SendReminderButton studentIds={[id]} className="btn ghost" /> : null}
         {fp && student.customer_no ? (
           <NewReceiptButton {...fp} label="Record a fee payment" preset={[{ lineType: 'Customer', accountNo: student.customer_no, description: `Fees — ${student.admission_no} ${name}`, amount: fees && fees.balance > 0 ? String(fees.balance / 100) : '' }]} />
@@ -103,6 +125,8 @@ export default async function StudentPage({ params, searchParams }: {
               ['Birth certificate', student.birth_certificate_no ?? '—'],
               ['NEMIS UPI', student.nemis_upi ?? '—'],
               ['Religion', student.religion ?? '—'],
+              ['Boarding', student.boarding_status === 'BOARDER' ? 'Boarder' : 'Day scholar'],
+              ['House', student.house ?? '—'],
               ['Medical notes', student.medical_notes ?? '—'],
             ]} />
           </section>
@@ -187,6 +211,30 @@ export default async function StudentPage({ params, searchParams }: {
         </CollapsibleCard>
       ) : null}
 
+      {canFees ? (
+        <CollapsibleCard title="Fee options & discounts" sub={`${student.boarding_status === 'BOARDER' ? 'Boarder' : 'Day scholar'} · ${feeOptions.length} optional item${feeOptions.length === 1 ? '' : 's'} · ${discounts.filter((d) => d.status === 'ACTIVE').length} active discount${discounts.filter((d) => d.status === 'ACTIVE').length === 1 ? '' : 's'}`}>
+          <div className="grid g2">
+            <div>
+              <div className="hint" style={{ marginBottom: 6 }}>Optional items this student takes</div>
+              <FeeOptionsForm studentId={id} items={feeItems.filter((i) => i.applies_to === 'OPT_IN')} selected={feeOptions.map((o) => o.fee_item_id)} canEdit={canFeeSetup} />
+            </div>
+            <div>
+              <div className="hint" style={{ marginBottom: 6 }}>{term ? `What ${term.name} bills` : 'Next bill'}</div>
+              {nextBill && nextBill.lines.length ? (
+                <TableWrap sortable={false}>
+                  <tbody>
+                    {nextBill.lines.map((l) => <tr key={l.fee_item_id}><td>{l.fee_item_name}</td><td className="num"><Money cents={l.amount} /></td></tr>)}
+                    {nextBill.discounts.map((d) => <tr key={d.discount_id}><td className="muted-cell">Less: {d.description}</td><td className="num muted-cell">(<Money cents={d.amount} />)</td></tr>)}
+                    <tr><th>Net for the term</th><th className="num"><Money cents={nextBill.net} /></th></tr>
+                  </tbody>
+                </TableWrap>
+              ) : <EmptyState icon="🏗" title="No fee structure for this grade and term" />}
+            </div>
+          </div>
+          <DiscountsTable studentId={id} rows={discounts} feeItems={feeItems} terms={allTerms} canEdit={canFeeSetup} />
+        </CollapsibleCard>
+      ) : null}
+
       <CollapsibleCard title="Academics" sub={term ? `${term.name} ${term.year_name}` : 'No term'} actions={terms.length > 1 ? (
         <span className="inline" style={{ gap: 4 }}>
           {terms.map((t) => <Link key={t.id} href={`/students/view/${id}?term=${t.id}`} className={`btn sm ${t.id === term?.id ? '' : 'ghost'}`}>{t.name}</Link>)}
@@ -247,6 +295,10 @@ export default async function StudentPage({ params, searchParams }: {
         ) : <EmptyState icon="📚" title="No enrolment yet" />}
       </CollapsibleCard>
 
+      {student.current_grade_level_id ? <ElectivesCard studentId={id} offered={offered} taken={taken.map((t) => t.id)} canEdit={canElectives && student.status === 'ACTIVE'} /> : null}
+      {canIncidents ? <IncidentsCard studentId={id} rows={incidents} canManage={canIncidentsManage} /> : null}
+      <ServicesCard studentId={id} boarder={student.boarding_status === 'BOARDER'} ride={ride ?? null} routes={routes.filter((r) => r.status === 'ACTIVE')} canTransport={(canTransport || canEdit) && student.status === 'ACTIVE'}
+        bed={bed ?? null} freeBeds={beds.filter((b) => !b.allocation_id && b.status === 'AVAILABLE' && (b.hostel_gender === 'MIXED' || !student.gender || b.hostel_gender === student.gender))} canHostel={canHostel && student.status === 'ACTIVE'} loans={loans} canLibrary={canLibrary} />
       <AttachmentPanel entity="student" entityId={id} attachments={attachments} canManage={canEdit} mediaEnabled={isConfigured()} />
     </Page>
   );

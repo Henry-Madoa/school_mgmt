@@ -1,5 +1,5 @@
 /*
- * Amount-in-words, for the Loan Application printout's "AmountInWords" field (design doc
+ * Amount-in-words, for the receipt and voucher printouts' "AmountInWords" field (design doc
  * §2.2). Pure, no database access.
  */
 import type { Cents } from './types.ts';

@@ -16,7 +16,7 @@ export default async function LoginPage() {
         <h1>{org?.name || 'School Management System'}</h1>
         {org?.motto ? <div className="motto">{org.motto}</div> : null}
         <div className="meta">
-          {org?.sasra_licence_no ? <>Reg. No. {org.sasra_licence_no}<br /></> : null}
+          {org?.licence_no ? <>Reg. No. {org.licence_no}<br /></> : null}
           {org?.phone_primary ? <>{org.phone_primary}<br /></> : null}
           {org?.email}
         </div>

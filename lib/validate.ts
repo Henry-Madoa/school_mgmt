@@ -1,6 +1,6 @@
 /*
  * Contact-detail validation shared by every card that captures a phone number or an email
- * address — member registration and editing, employees, users, employers, customers, vendors and
+ * address — student admission and editing, employees, users, guardians, customers, vendors and
  * the company card. The browser checks the same shapes through Field's `phone`/`email` types
  * (components/ui/field.tsx), but a Server Action can be called without ever rendering that form,
  * so the rule is enforced here as well and this module is the single definition of it.
@@ -59,7 +59,7 @@ export function assertEmail(value: unknown, label = 'Email address'): void {
 
 /*
  * Most savers in this codebase write a whitelist of columns straight from a request body
- * (MEMBER_FIELDS, APPLICATION_FIELDS, the employer/employee column lists). Rather than naming
+ * (the student, application and employee column lists). Rather than naming
  * every contact column in every module, these walk the bag and check whatever looks like a phone
  * or an email — so a column added later is covered without another edit here.
  */

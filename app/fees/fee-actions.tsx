@@ -121,11 +121,15 @@ export function NewInvoiceRunButton({ terms, grades, defaultTermId, className = 
   terms: AcademicTermWithYear[]; grades: GradeLevel[]; defaultTermId?: number | null; className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [split, setSplit] = useState(false);
+  const [instalments, setInstalments] = useState<{ pct: string; due_date: string }[]>([{ pct: '60', due_date: today() }, { pct: '40', due_date: '' }]);
+  const setInst = (i: number, k: 'pct' | 'due_date', v: string) => setInstalments(instalments.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)));
+  const pctSum = instalments.reduce((a, r) => a + (Number(r.pct) || 0), 0);
   return (
     <>
       <button type="button" className={className} onClick={() => setOpen(true)}>New invoice run</button>
       {open ? (
-        <FormModal title="New fee invoice run" onClose={() => setOpen(false)} onSubmit={createFeeInvoiceRunRequest}
+        <FormModal title="New fee invoice run" onClose={() => setOpen(false)} onSubmit={(v) => createFeeInvoiceRunRequest(v, split ? instalments : [])}
           submitLabel="Create run" successTitle="Invoice run created" successDetail={(d) => `${d.no} — review the students billed, then post it`}
           redirectTo={(d) => `/fees/invoice-runs/${encodeURIComponent(d.no)}`}>
           <div className="grid g2">
@@ -134,9 +138,34 @@ export function NewInvoiceRunButton({ terms, grades, defaultTermId, className = 
           </div>
           <div className="grid g2">
             <Field name="posting_date" label="Posting date" type="date" required defaultValue={today()} />
-            <Field name="due_date" label="Due date" type="date" required defaultValue={today()} hint="Balances become overdue after this date" />
+            {!split ? <Field name="due_date" label="Due date" type="date" required defaultValue={today()} hint="Balances become overdue after this date" /> : <input type="hidden" name="due_date" value={instalments[0]?.due_date || today()} />}
           </div>
-          <div className="note">Every Active student in the grade(s) is billed the term's fee structure for their grade. Students already invoiced for the term are skipped.</div>
+          <div className="checkline">
+            <input type="checkbox" id="f_split" checked={split} onChange={(e) => setSplit(e.target.checked)} />
+            <label htmlFor="f_split">Bill in instalments (one invoice per instalment, each with its own due date)</label>
+          </div>
+          {split ? (
+            <>
+              <table>
+                <thead><tr><th style={{ width: 60 }}>#</th><th style={{ width: 120 }}>Percent</th><th>Due date</th><th style={{ width: 32 }} /></tr></thead>
+                <tbody>
+                  {instalments.map((r, i) => (
+                    <tr key={i}>
+                      <td>{i + 1}</td>
+                      <td><input type="number" min={1} max={100} value={r.pct} onChange={(e) => setInst(i, 'pct', e.target.value)} aria-label="Percent" style={{ width: '100%' }} /></td>
+                      <td><input type="date" value={r.due_date} onChange={(e) => setInst(i, 'due_date', e.target.value)} aria-label="Due date" required /></td>
+                      <td>{instalments.length > 2 ? <button type="button" className="btn sm ghost" aria-label="Remove" onClick={() => setInstalments(instalments.filter((_, idx) => idx !== i))}>×</button> : null}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="inline" style={{ gap: 8, marginTop: 6 }}>
+                <button type="button" className="btn ghost sm" onClick={() => setInstalments([...instalments, { pct: '', due_date: '' }])}>Add instalment</button>
+                <span className={`tiny ${pctSum === 100 ? '' : 'muted-cell'}`}>{pctSum}% of 100%</span>
+              </div>
+            </>
+          ) : null}
+          <div className="note">Every Active student in the grade(s) is billed the term's fee structure for their grade — the items that apply to them, less their discounts. Students already invoiced for the term are skipped.</div>
         </FormModal>
       ) : null}
     </>

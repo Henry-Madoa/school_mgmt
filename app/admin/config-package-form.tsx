@@ -94,7 +94,7 @@ export function ConfigPackageFormButton({ pkg, tables, className = 'btn', childr
               </div>
             ) : (
               <Field name="code" label="Code" defaultValue="" required maxLength={30} uppercase
-                hint="A short unique identifier, e.g. MEMBER-MIGRATE" />
+                hint="A short unique identifier, e.g. STUDENT-MIGRATE" />
             )}
             <Field name="name" label="Name" defaultValue={pkg?.name} required maxLength={100} />
             {pkg ? (

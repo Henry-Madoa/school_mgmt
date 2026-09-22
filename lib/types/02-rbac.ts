@@ -195,6 +195,8 @@ export interface SessionUser extends Omit<AppUser, 'password_hash'> {
    *  falling back to the default profile, then the first assigned, then a Super stand-in. Never
    *  null. */
   activeProfile: Profile;
+  /** User Setup "Teacher": the Teacher Portal is offered inside Employee Self Service. */
+  isTeacher: boolean;
   /**
    * Set only when the caller authenticated with a Web Service Access Key: what that key may do
    * on top of the user's permissions (lib/webServices assertKeyAllows). Absent for a session.

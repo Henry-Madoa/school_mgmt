@@ -38,10 +38,10 @@ async function warnIfMigrationsPending(): Promise<void> {
  * for the first seed instead of racing past a flag that is set before the work
  * has actually finished.
  */
-const globalForBootstrap = globalThis as typeof globalThis & { __saccoSeeding?: Promise<void> };
+const globalForBootstrap = globalThis as typeof globalThis & { __schoolSeeding?: Promise<void> };
 
 export function ensureSeeded(): Promise<void> {
-  globalForBootstrap.__saccoSeeding ??= (async () => {
+  globalForBootstrap.__schoolSeeding ??= (async () => {
     const started = Date.now();
     try {
       await warnIfMigrationsPending();
@@ -61,9 +61,9 @@ export function ensureSeeded(): Promise<void> {
       // A transient failure (e.g. a cold-start timeout) must not wedge every
       // later request behind the same cached rejection — clear it so the next
       // call retries instead of replaying this one forever.
-      globalForBootstrap.__saccoSeeding = undefined;
+      globalForBootstrap.__schoolSeeding = undefined;
       throw err;
     }
   })();
-  return globalForBootstrap.__saccoSeeding;
+  return globalForBootstrap.__schoolSeeding;
 }

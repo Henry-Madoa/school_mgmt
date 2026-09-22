@@ -4,7 +4,7 @@
  */
 import { one, all, run, tx, audit, hasAnyRow } from '../db.ts';
 import { AppError } from '../errors.ts';
-import type { Actor, Cents, FeeItem, FeeItemView, FeeStructureView } from '../types.ts';
+import type { Actor, Cents, FeeAppliesTo, FeeItem, FeeItemView, FeeStructureView } from '../types.ts';
 
 export const listFeeItems = (): Promise<FeeItemView[]> =>
   all<FeeItemView>(
@@ -14,7 +14,10 @@ export const listFeeItems = (): Promise<FeeItemView[]> =>
 
 export const listActiveFeeItems = (): Promise<FeeItem[]> => all<FeeItem>("SELECT * FROM fee_item WHERE status = 'ACTIVE' ORDER BY sort, name");
 
-export interface FeeItemInput { code: string; name: string; glAccountId: number; status?: string; sort?: number }
+export interface FeeItemInput { code: string; name: string; glAccountId: number; status?: string; sort?: number; appliesTo?: FeeAppliesTo | string | null }
+export const FEE_APPLIES_TO: { value: FeeAppliesTo; label: string }[] = [
+  { value: 'ALL', label: 'Every student' }, { value: 'BOARDER', label: 'Boarders only' }, { value: 'DAY', label: 'Day scholars only' }, { value: 'OPT_IN', label: 'Students who opt in' },
+];
 
 export async function saveFeeItem(id: number | null, input: FeeItemInput, user: Actor): Promise<{ id: number }> {
   const code = String(input.code || '').trim().toUpperCase();
@@ -25,12 +28,14 @@ export async function saveFeeItem(id: number | null, input: FeeItemInput, user: 
   if (!acc.is_postable || acc.status !== 'ACTIVE') throw new AppError('The income account must be an active posting account', 'VALIDATION');
   if (acc.type !== 'INCOME') throw new AppError('A fee item posts to an INCOME account', 'VALIDATION');
   if (await hasAnyRow('fee_item', `code = ? ${id ? 'AND id <> ?' : ''}`, ...(id ? [code, id] : [code]))) throw new AppError(`Fee item ${code} already exists`, 'DUPLICATE');
+  const appliesTo = String(input.appliesTo || 'ALL').toUpperCase();
+  if (!FEE_APPLIES_TO.some((a) => a.value === appliesTo)) throw new AppError('Pick who the fee item applies to', 'VALIDATION');
   if (id) {
-    await run('UPDATE fee_item SET code=?, name=?, gl_account_id=?, status=?, sort=? WHERE id=?', code, name, input.glAccountId, input.status || 'ACTIVE', Number(input.sort) || 1, id);
+    await run('UPDATE fee_item SET code=?, name=?, gl_account_id=?, status=?, sort=?, applies_to=? WHERE id=?', code, name, input.glAccountId, input.status || 'ACTIVE', Number(input.sort) || 1, appliesTo, id);
     await audit(user, 'FEE_ITEM_UPDATE', 'fee_item', id, { code });
     return { id };
   }
-  const info = await run('INSERT INTO fee_item (code, name, gl_account_id, status, sort) VALUES (?,?,?,?,?)', code, name, input.glAccountId, input.status || 'ACTIVE', Number(input.sort) || 1);
+  const info = await run('INSERT INTO fee_item (code, name, gl_account_id, status, sort, applies_to) VALUES (?,?,?,?,?,?)', code, name, input.glAccountId, input.status || 'ACTIVE', Number(input.sort) || 1, appliesTo);
   await audit(user, 'FEE_ITEM_CREATE', 'fee_item', info.lastInsertRowid, { code });
   return { id: Number(info.lastInsertRowid) };
 }
@@ -44,8 +49,10 @@ export async function deleteFeeItem(id: number, user: Actor): Promise<void> {
 /* ---------------------------------------------------------------- structure */
 
 const STRUCTURE_SELECT = `
-  SELECT fs.*, g.name AS grade_level_name, t.name AS term_name, y.name AS year_name, fi.code AS fee_item_code, fi.name AS fee_item_name
+  SELECT fs.*, g.name AS grade_level_name, t.name AS term_name, y.name AS year_name, fi.code AS fee_item_code, fi.name AS fee_item_name,
+         fi.applies_to AS fee_item_applies_to, ga.code AS gl_account_code
   FROM fee_structure fs
+  JOIN gl_account ga ON ga.id = (SELECT gl_account_id FROM fee_item WHERE id = fs.fee_item_id)
   JOIN grade_level g ON g.id = fs.grade_level_id
   JOIN education_level el ON el.id = g.education_level_id
   JOIN academic_term t ON t.id = fs.term_id

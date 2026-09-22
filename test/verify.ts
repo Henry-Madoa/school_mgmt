@@ -23,7 +23,7 @@ process.env.DATABASE_URL = testUrl;
 // The suite exercises the demonstration school, whatever NODE_ENV the runner sets.
 process.env.SEED_DEMO_DATA = 'true';
 
-const { all, one, run } = await import('../lib/db.ts');
+const { all, one, run, hasAnyRow } = await import('../lib/db.ts');
 const { seedIfEmpty } = await import('../lib/seed.ts');
 const accounting = await import('../lib/accounting.ts');
 const gl = await import('../lib/gl.ts');
@@ -87,7 +87,15 @@ const throws = async (fn: () => unknown, codeOrRe: RegExp): Promise<void> => {
   assert.fail('expected the operation to be rejected, but it succeeded');
 };
 
-console.log('\nSeeding a throwaway database…');
+/** A session for any user — the effective permissions and profile as the app would load them. */
+const sessionFor = async (userId: number): Promise<SessionUser> => {
+  const tok = `up-${userId}-${Date.now()}-${Math.random()}`;
+  await run('INSERT INTO session (token, user_id, created_at, expires_at) VALUES (?,?,?,?)',
+    tok, userId, new Date().toISOString(), new Date(Date.now() + 3_600_000).toISOString());
+  const su = (await auth.userFromToken(tok))!;
+  await run('DELETE FROM session WHERE token = ?', tok);
+  return su;
+};
 
 console.log('\nSeeding a throwaway database…');
 const seedInfo = await seedIfEmpty();
@@ -182,7 +190,7 @@ await test('a no-direct-posting account rejects a manual journal but still accep
     valueDate: today,
     lines: [{ account: '1020', debit: 500, credit: 0 }, { account: '4050', debit: 0, credit: 500 }],
   }, admin), /VALIDATION/);
-  // The same account still accepts postJournal() directly — savings/loan/charge callers,
+  // The same account still accepts postJournal() directly — document posting callers,
   // and this very test suite's own fixtures above, are unaffected by the manual-journal guard.
   const before = await accounting.accountBalance('1020');
   await accounting.postJournal({
@@ -320,6 +328,7 @@ await test('the demonstration school is seeded with a current year, a current te
 
 let newStudentId = 0;
 let newAdmissionNo = '';
+let siblingId = 0;
 await test('admitting a student issues an Admission No., opens the fee account and enrols them', async () => {
   const r = await studentsLib.admitStudent({
     firstName: 'Test', lastName: 'Learner', gender: 'FEMALE', dateOfBirth: '2016-03-04', admissionDate: today, streamId: grade4East.id,
@@ -344,6 +353,7 @@ await test('a guardian already on file (same name and phone) is linked, not dupl
   const before = (await one<{ c: number }>('SELECT COUNT(*) c FROM guardian'))!.c;
   const r = await studentsLib.admitStudent({ firstName: 'Sibling', lastName: 'Learner', admissionDate: today, streamId: grade4West.id },
     [{ fullName: 'Test Parent', phone: '0711000111', relationship: 'Mother', isPrimary: true }], admin);
+  siblingId = r.id;
   const after = (await one<{ c: number }>('SELECT COUNT(*) c FROM guardian'))!.c;
   assert.strictEqual(after, before, 'no new guardian row');
   const g = await studentsLib.listStudentGuardians(r.id);
@@ -388,15 +398,54 @@ section('School — fee structure, invoice runs through the G/L, receipts and ba
 
 const feeReceivable = async () => accounting.accountBalance('1210');
 
+await test('boarding status, opt-in items and discounts decide what a student is billed', async () => {
+  const billing = await import('../lib/fees/billing.ts');
+  const items = await feeSetup.listActiveFeeItems();
+  const boarding = items.find((i) => i.code === 'BOARDING')!; const lunch = items.find((i) => i.code === 'LUNCH')!; const transport = items.find((i) => i.code === 'TRANSPORT')!;
+  assert.ok(boarding.applies_to === 'BOARDER' && lunch.applies_to === 'DAY' && transport.applies_to === 'OPT_IN', 'the seed marks who each item is for');
+  const subject = { id: newStudentId, grade_level_id: grade4East.grade_level_id, boarding_status: 'DAY' };
+  const day = await billing.studentBill(subject, currentTerm.id);
+  assert.ok(day.lines.some((l) => l.fee_item_id === lunch.id) && !day.lines.some((l) => l.fee_item_id === boarding.id), 'a day scholar pays lunch, not boarding');
+  assert.ok(!day.lines.some((l) => l.fee_item_id === transport.id), 'transport only when opted in');
+  const boarder = await billing.studentBill({ ...subject, boarding_status: 'BOARDER' }, currentTerm.id);
+  assert.ok(boarder.lines.some((l) => l.fee_item_id === boarding.id) && !boarder.lines.some((l) => l.fee_item_id === lunch.id), 'a boarder pays boarding, not lunch');
+  await billing.setStudentFeeOptions(newStudentId, [transport.id, lunch.id], admin);
+  const withBus = await billing.studentBill(subject, currentTerm.id);
+  assert.ok(withBus.lines.some((l) => l.fee_item_id === transport.id), 'opted in to transport');
+  assert.strictEqual((await billing.listStudentFeeOptions(newStudentId)).length, 1, 'only OPT_IN items are kept as options');
+  // A 25% tuition bursary and a fixed sibling discount, capped at the invoice.
+  const tuition = items.find((i) => i.code === 'TUITION')!;
+  await billing.saveStudentFeeDiscount(null, newStudentId, { feeItemId: tuition.id, percent: 25, description: 'Test bursary' }, admin);
+  const { id: sib } = await billing.saveStudentFeeDiscount(null, newStudentId, { amount: 100_000, description: 'Sibling discount' }, admin);
+  const discounted = await billing.studentBill(subject, currentTerm.id);
+  const tuitionAmt = discounted.lines.find((l) => l.fee_item_id === tuition.id)!.amount;
+  assert.strictEqual(discounted.discount, Math.round(tuitionAmt * 0.25) + 100_000, 'both discounts taken');
+  assert.strictEqual(discounted.net, discounted.gross - discounted.discount);
+  await throws(() => billing.saveStudentFeeDiscount(null, newStudentId, { percent: 10, amount: 500, description: 'both' }, admin), /not both/);
+  await throws(() => billing.saveStudentFeeDiscount(null, newStudentId, { percent: 150, description: 'too much' }, admin), /0–100/);
+  await billing.deleteStudentFeeDiscount(sib, admin);
+  await billing.setStudentFeeOptions(newStudentId, [], admin);
+});
+
+await test('a class with a capacity refuses one placement too many', async () => {
+  const before = await academics.getStream(grade4West.id);
+  const roll = (await studentsLib.listStreamRoster(grade4West.id)).length;
+  await academics.saveStream(grade4West.id, { gradeLevelId: before!.grade_level_id, academicYearId: before!.academic_year_id, name: before!.name, classTeacherId: before!.class_teacher_id, capacity: roll }, admin);
+  await throws(() => studentsLib.placeStudent(newStudentId, grade4West.id, admin), /is full/);
+  await academics.saveStream(grade4West.id, { gradeLevelId: before!.grade_level_id, academicYearId: before!.academic_year_id, name: before!.name, classTeacherId: before!.class_teacher_id, capacity: null }, admin);
+});
+
 await test('the fee structure per grade and term drives what an invoice run bills', async () => {
   const lines = await feeSetup.gradeFeeLines(grade4East.grade_level_id, currentTerm.id);
   assert.ok(lines.length >= 3, 'Grade 4 has a structure this term');
-  const total = lines.reduce((a, l) => a + Number(l.amount), 0);
   const preview = await feeInvoices.previewRun(currentTerm.id, grade4East.grade_level_id);
   const mine = preview.lines.find((l) => l.student_id === newStudentId)!;
   assert.ok(mine && !mine.already_invoiced, 'the new student is due to be billed');
-  assert.strictEqual(Number(mine.amount), total, 'for exactly the structure total');
-  assert.ok(preview.lines.filter((l) => l.student_id !== newStudentId).every((l) => l.already_invoiced), 'everyone else was billed by the seed');
+  const bill = await (await import('../lib/fees/billing.ts')).studentBill({ id: newStudentId, grade_level_id: grade4East.grade_level_id, boarding_status: 'DAY' }, currentTerm.id);
+  assert.strictEqual(Number(mine.gross), bill.gross, 'gross = the items that apply to a day scholar');
+  assert.strictEqual(Number(mine.amount), bill.net, 'to invoice = net of discounts');
+  assert.ok(bill.gross < lines.reduce((a, l) => a + Number(l.amount), 0), 'less than the whole structure (boarding is not billed to a day scholar)');
+  assert.ok(preview.lines.filter((l) => l.student_id !== newStudentId && l.student_id !== siblingId).every((l) => l.already_invoiced), 'everyone else was billed by the seed');
 });
 
 let invoicedAmount = 0;
@@ -406,15 +455,23 @@ await test('posting an invoice run raises one posted Sales Invoice per student a
   const { no } = await feeInvoices.createFeeInvoiceRun({ termId: currentTerm.id, gradeLevelId: grade4East.grade_level_id, postingDate: today, dueDate: today }, admin);
   const r = await feeInvoices.postFeeInvoiceRun(no, admin);
   assert.strictEqual(r.failures.length, 0, r.failures.map((f) => `${f.admission_no}: ${f.error}`).join('; '));
-  assert.strictEqual(r.posted, 1, 'only the not-yet-invoiced student is billed');
-  invoicedAmount = Number(r.total);
+  assert.strictEqual(r.posted, 2, 'only the two not-yet-invoiced students are billed');
+  const runTotal = Number(r.total);
+  invoicedAmount = Number((await feeInvoices.listStudentFeeInvoices(newStudentId))[0].amount);
   const inv = (await feeInvoices.listStudentFeeInvoices(newStudentId))[0];
   assert.ok(inv.posted_invoice_no, 'a posted Sales Invoice');
   assert.strictEqual(Number(inv.amount), invoicedAmount);
+  const bill = await (await import('../lib/fees/billing.ts')).studentBill({ id: newStudentId, grade_level_id: grade4East.grade_level_id, boarding_status: 'DAY' }, currentTerm.id);
+  assert.ok(bill.discount > 0, 'the test bursary is still on file');
+  assert.strictEqual(invoicedAmount, bill.net, 'invoiced net of the bursary');
+  const discountLines = await all<{ line_amount: number }>('SELECT l.line_amount FROM posted_sales_line l JOIN posted_sales_document d ON d.id = l.posted_sales_document_id WHERE d.no = ? AND l.line_amount < 0', inv.posted_invoice_no);
+  assert.strictEqual(discountLines.reduce((a, l) => a + Number(l.line_amount), 0), -bill.discount, 'the discount is its own negative line');
+  const contra = (await one<{ id: number }>('SELECT fee_discount_account_id AS id FROM organisation WHERE id = 1'))!.id;
+  assert.ok((await accounting.accountBalance((await one<{ code: string }>('SELECT code FROM gl_account WHERE id = ?', contra))!.code)) < 0, 'the contra-income account carries the waived amount');
   assert.strictEqual(Number(inv.remaining_amount), invoicedAmount, 'fully open');
   const summary = (await feeStatement.feeAccountSummary(newStudentId))!;
   assert.strictEqual(Number(summary.balance), balBefore + invoicedAmount, 'the fee account balance rose by the invoice');
-  assert.strictEqual(await feeReceivable(), receivableBefore + invoicedAmount, 'School Fees Receivable rose by the same amount');
+  assert.strictEqual(await feeReceivable(), receivableBefore + runTotal, 'School Fees Receivable rose by the run total');
   const run = (await feeInvoices.getFeeInvoiceRun(no))!;
   assert.strictEqual(run.status, 'Posted');
   await throws(() => feeInvoices.postFeeInvoiceRun(no, admin), /posted|VALIDATION/i);
@@ -557,6 +614,97 @@ await test('a report card is built from the marks and stays off the portal until
 });
 
 /* ------------------------------------------------------------------------ */
+section('School — electives, grading scales per level, instalments, admissions, welfare');
+
+await test('an elective counts only for the students who take it — marks roster and report card follow', async () => {
+  const jss = streamsNow.find((s) => s.grade_level_name === 'Grade 7')!;
+  const roster = await studentsLib.listStreamRoster(jss.id);
+  const subjects = await academics.listSubjectsForGrade(jss.grade_level_id);
+  const elective = subjects.find((x) => !x.is_core)!;
+  const core = subjects.find((x) => x.is_core)!;
+  assert.ok(elective && core, 'Grade 7 offers both core subjects and electives');
+  const pupil = roster[0];
+  await academics.setStudentElectives(pupil.id, [], admin);
+  assert.ok(!(await academics.listSubjectsForStudent(pupil.id)).some((x) => x.id === elective.id), 'not taking the elective');
+  assert.ok((await academics.listSubjectTakers(jss.id, core.id)).some((x) => x.id === pupil.id), 'everyone takes a core subject');
+  assert.ok(!(await academics.listSubjectTakers(jss.id, elective.id)).some((x) => x.id === pupil.id), 'the marks roster for the elective leaves them out');
+  const types = await academics.listAssessmentTypes();
+  const r = await assessmentsLib.enterMarks(jss.id, elective.id, types[0].id, currentTerm.id, [{ studentId: pupil.id, score: 77 }], admin);
+  assert.strictEqual(r.saved, 0, 'a mark for a subject not taken is ignored');
+  await academics.setStudentElectives(pupil.id, [elective.id, core.id], admin);
+  const taking = await academics.listSubjectsForStudent(pupil.id);
+  assert.ok(taking.some((x) => x.id === elective.id), 'now taking it (core ids in the list are ignored)');
+  const r2 = await assessmentsLib.enterMarks(jss.id, elective.id, types[0].id, currentTerm.id, [{ studentId: pupil.id, score: 77 }], admin);
+  assert.strictEqual(r2.saved, 1);
+  const card = (await assessmentsLib.buildReportCard(pupil.id, currentTerm.id))!;
+  assert.ok(card.lines.some((l) => l.subject_id === elective.id), 'the report card lists the elective');
+  await assessmentsLib.enterMarks(jss.id, elective.id, types[0].id, currentTerm.id, [{ studentId: pupil.id, score: null }], admin);
+});
+
+await test('a grading scale bound to an education level labels that level, with points and a mean grade', async () => {
+  const jss = streamsNow.find((s) => s.grade_level_name === 'Grade 7')!;
+  const scale = (await academics.gradingScaleForGrade(jss.grade_level_id))!;
+  assert.ok(scale.education_level_id && scale.bands.some((b) => b.points != null), 'Junior Secondary uses the letter-grade scale');
+  const primary = (await academics.gradingScaleForGrade(grade4East.grade_level_id))!;
+  assert.ok(primary.is_default && !primary.education_level_id, 'primary falls back to the CBC default');
+  const roster = await studentsLib.listStreamRoster(jss.id);
+  const card = (await assessmentsLib.buildReportCard(roster[0].id, currentTerm.id))!;
+  assert.ok(card.overall.mean_points != null && card.overall.mean_grade, 'a Grade 7 card carries mean points and a mean grade');
+  const band = await academics.bandForScore(82, scale);
+  assert.strictEqual(band?.label, 'A');
+  assert.strictEqual(band?.points, 12);
+});
+
+await test('a run split into instalments posts one invoice per instalment, each with its own due date, adding up exactly', async () => {
+  const r = await studentsLib.admitStudent({ firstName: 'Instalment', lastName: 'Learner', admissionDate: today, streamId: grade4West.id },
+    [{ fullName: 'Inst Parent', phone: '0733000333', relationship: 'Father', isPrimary: true }], admin);
+  await throws(() => feeInvoices.createFeeInvoiceRun({ termId: currentTerm.id, gradeLevelId: grade4West.grade_level_id, postingDate: today, dueDate: today, instalments: [{ pct: 60, due_date: today }, { pct: 30, due_date: today }] }, admin), /add up to 100/);
+  const { no } = await feeInvoices.createFeeInvoiceRun({ termId: currentTerm.id, gradeLevelId: grade4West.grade_level_id, postingDate: today, dueDate: today, instalments: [{ pct: 60, due_date: today }, { pct: 40, due_date: '2099-12-31' }] }, admin);
+  const posted = await feeInvoices.postFeeInvoiceRun(no, admin);
+  assert.strictEqual(posted.failures.length, 0, posted.failures.map((f) => f.error).join('; '));
+  const inv = (await feeInvoices.listStudentFeeInvoices(r.id)).sort((a, b) => a.instalment_no - b.instalment_no);
+  assert.strictEqual(inv.length, 2, 'two invoices');
+  const billing = await import('../lib/fees/billing.ts');
+  const bill = await billing.studentBill({ id: r.id, grade_level_id: grade4West.grade_level_id, boarding_status: 'DAY' }, currentTerm.id);
+  assert.strictEqual(Number(inv[0].amount) + Number(inv[1].amount), bill.net, 'the instalments add up to the bill');
+  assert.strictEqual(inv[0].due_date, today);
+  assert.strictEqual(inv[1].due_date, '2099-12-31');
+  const summary = (await feeStatement.feeAccountSummary(r.id))!;
+  assert.strictEqual(Number(summary.balance), bill.net);
+  assert.strictEqual(Number(summary.overdue), 0, 'nothing overdue yet');
+  assert.strictEqual(feeInvoices.splitByInstalments(1001, [{ pct: 50, due_date: today }, { pct: 50, due_date: today }]).join(','), '501,500', 'rounding lands on the last instalment');
+});
+
+await test('an application moves through the pipeline and admission creates the student with the guardian', async () => {
+  const admissions = await import('../lib/admissions.ts');
+  const { id, no } = await admissions.saveApplication(null, { firstName: 'Applicant', lastName: 'Test', gradeLevelId: grade4East.grade_level_id, academicYearId: currentYear.id, guardianName: 'App Parent', guardianPhone: '0744000444', status: 'ENQUIRY' }, admin);
+  assert.ok(/^APP/.test(no));
+  await admissions.setApplicationStatus(id, 'APPLIED', admin);
+  await admissions.setApplicationStatus(id, 'OFFERED', admin);
+  await throws(() => admissions.setApplicationStatus(id, 'ADMITTED', admin), /Use Admit/);
+  const r = await admissions.admitApplication(id, grade4East.id, today, null, admin);
+  const s = (await studentsLib.getStudent(r.studentId))!;
+  assert.strictEqual(s.current_stream_id, grade4East.id);
+  assert.strictEqual(s.guardians[0].phone, '0744000444');
+  const a = (await admissions.getApplication(id))!;
+  assert.strictEqual(a.status, 'ADMITTED');
+  assert.strictEqual(a.student_id, r.studentId);
+  await throws(() => admissions.admitApplication(id, grade4East.id, today, null, admin), /already been admitted/);
+});
+
+await test('incidents are logged per student and the school-wide log shows what is open', async () => {
+  const incidents = await import('../lib/incidents.ts');
+  const { id } = await incidents.saveIncident(null, newStudentId, { kind: 'EXEAT', date: today, title: 'Test exeat', followUp: '2099-01-01' }, admin);
+  await throws(() => incidents.saveIncident(null, newStudentId, { kind: 'SOMETHING', date: today, title: 'x' }, admin), /kind/);
+  const mine = await incidents.listStudentIncidents(newStudentId);
+  assert.ok(mine.some((i) => i.id === id && i.status === 'OPEN'));
+  assert.ok((await incidents.listIncidents({ kind: 'EXEAT', openOnly: true })).some((i) => i.id === id));
+  await incidents.saveIncident(id, newStudentId, { kind: 'EXEAT', date: today, title: 'Test exeat', status: 'CLOSED' }, admin);
+  assert.ok(!(await incidents.listIncidents({ openOnly: true })).some((i) => i.id === id), 'closed items drop off the open log');
+  await incidents.deleteIncident(id, admin);
+});
+
+/* ------------------------------------------------------------------------ */
 section('School — portal scoping and announcements');
 
 await test('a parent login sees only their own children; a student login only themselves', async () => {
@@ -587,6 +735,152 @@ await test('every School service exposed to the web-service channels is register
   const { CHANNELS_INTEGRATION } = await import('../lib/webServices/channels.ts');
   assert.ok(CHANNELS_INTEGRATION.procedures.length >= 10);
   for (const c of CHANNELS_INTEGRATION.procedures) assert.ok(c.action && c.action in permissions.ACTIONS, `${c.name} names a real action (${c.action})`);
+});
+
+/* ------------------------------------------------------------------------ */
+section('School services — transport (buses as fixed assets, drivers as employees, work tickets), hostel beds, library');
+
+const transportLib = await import('../lib/transport.ts');
+const hostelLib = await import('../lib/hostel.ts');
+const libraryLib = await import('../lib/library.ts');
+const { addDaysIso } = await import('../lib/format.ts');
+
+await test('a bus must be a VEHICLES fixed asset and a driver an employee with a licence on file', async () => {
+  const buses = await transportLib.listBuses();
+  assert.ok(buses.length >= 2, 'the demo school runs two buses');
+  for (const b of buses) {
+    const fa = (await one<{ fa_class_code: string }>('SELECT fa_class_code FROM fixed_asset WHERE no = ?', b.fixed_asset_no))!;
+    assert.strictEqual(fa.fa_class_code, 'VEHICLES', `${b.registration_no} sits in the Fixed Asset register`);
+  }
+  const ict = (await one<{ no: string }>("SELECT no FROM fixed_asset WHERE fa_class_code = 'ICT' LIMIT 1"))!;
+  await throws(() => transportLib.saveBus(null, { fixedAssetNo: ict.no, registrationNo: 'KZZ 999Z', capacity: 10 }, admin), /VEHICLES/);
+  await throws(() => transportLib.saveBus(null, { fixedAssetNo: 'FA-NOPE', registrationNo: 'KZZ 999Z', capacity: 10 }, admin), /Fixed Asset register/);
+  const drivers = await transportLib.listDrivers();
+  assert.ok(drivers.length >= 2);
+  for (const d of drivers) assert.ok(await hasAnyRow('employee', 'id = ?', d.employee_id), 'every driver is an HR employee');
+  const cook = (await one<{ id: number }>("SELECT id FROM employee WHERE job_title = 'Head Cook'"))!;
+  await throws(() => transportLib.saveBus(null, { fixedAssetNo: buses[0].fixed_asset_no, registrationNo: 'KZZ 998Z', capacity: 10, driverEmployeeId: cook.id }, admin), /driver profile/);
+  // One driver, one bus.
+  const other = buses.find((b) => b.id !== buses[0].id)!;
+  await throws(() => transportLib.saveBus(other.id, { fixedAssetNo: other.fixed_asset_no, registrationNo: other.registration_no, capacity: other.capacity, driverEmployeeId: buses[0].driver_employee_id, routeId: other.route_id }, admin), /already assigned/);
+});
+
+await test('a work ticket is issued before the bus leaves, refused while one is open or the papers have lapsed, and closed with the odometer and fuel', async () => {
+  const bus = (await transportLib.listBuses()).find((b) => b.registration_no === 'KDA 456B')!;
+  assert.ok(bus.driver_employee_id && bus.route_id);
+  const before = bus.odometer;
+  const { no } = await transportLib.openWorkTicket({ busId: bus.id, date: today, purpose: 'ROUTE_RUN', odometerStart: before }, admin);
+  assert.ok(/^WT\d+/.test(no), `numbered from the WORK_TICKET series: ${no}`);
+  const t = (await transportLib.getWorkTicket(no))!;
+  assert.strictEqual(t.driver_employee_id, bus.driver_employee_id, 'defaults to the assigned driver');
+  assert.strictEqual(t.route_id, bus.route_id, 'and the bus’s route');
+  assert.strictEqual(t.status, 'OPEN');
+  await throws(() => transportLib.openWorkTicket({ busId: bus.id, date: today, purpose: 'ROUTE_RUN' }, admin), /already has an open work ticket/);
+  await throws(() => transportLib.closeWorkTicket(no, { odometerEnd: before - 1 }, admin), /odometer/i);
+  const { distance } = await transportLib.closeWorkTicket(no, { odometerEnd: before + 70, fuelLitres: 12.5, fuelCost: 222500 }, admin);
+  assert.strictEqual(distance, 70);
+  const after = (await transportLib.getBus(bus.id))!;
+  assert.strictEqual(after.odometer, before + 70, 'the bus’s odometer advances with the ticket');
+  await throws(() => transportLib.closeWorkTicket(no, { odometerEnd: before + 80 }, admin), /already closed/);
+  // Expired insurance stops the next ticket.
+  await run('UPDATE school_bus SET insurance_expiry = ? WHERE id = ?', '2020-01-01', bus.id);
+  await throws(() => transportLib.openWorkTicket({ busId: bus.id, date: today, purpose: 'ROUTE_RUN' }, admin), /insurance has expired/);
+  await run('UPDATE school_bus SET insurance_expiry = ? WHERE id = ?', bus.insurance_expiry, bus.id);
+  // A trip needs a destination; a workshop visit does not need a route.
+  await throws(() => transportLib.openWorkTicket({ busId: bus.id, date: today, purpose: 'TRIP' }, admin), /destination/);
+  const { no: wt2 } = await transportLib.openWorkTicket({ busId: bus.id, date: today, purpose: 'MAINTENANCE', destination: 'Workshop' }, admin);
+  await transportLib.cancelWorkTicket(wt2, 'Not needed', admin);
+  assert.strictEqual((await transportLib.getWorkTicket(wt2))!.status, 'CANCELLED');
+  const summary = await transportLib.fleetSummary(`${today.slice(0, 4)}-01-01`, today);
+  const mine = summary.find((s) => s.bus_id === bus.id)!;
+  assert.ok(mine.trips >= 1 && mine.km >= 70 && Number(mine.fuel_cost) >= 222500, 'the fleet report picks the closed ticket up');
+});
+
+await test('putting a student on a route opts them into the Transport fee item; taking them off removes it', async () => {
+  const route = (await transportLib.listRoutes()).find((r) => r.code === 'C')!;
+  assert.ok(route.stops.length >= 3, 'the demo route has stops');
+  const transportItem = (await one<{ id: number }>("SELECT id FROM fee_item WHERE code = 'TRANSPORT'"))!;
+  await transportLib.setStudentTransport(newStudentId, { routeId: route.id, stopId: route.stops[1].id, direction: 'MORNING' }, admin);
+  const ride = (await transportLib.getStudentTransport(newStudentId))!;
+  assert.strictEqual(ride.stop_name, route.stops[1].name);
+  assert.strictEqual(ride.direction, 'MORNING');
+  assert.ok(await hasAnyRow('student_fee_option', 'student_id = ? AND fee_item_id = ?', newStudentId, transportItem.id), 'the fare is billed on the next run');
+  const otherRoute = (await transportLib.listRoutes()).find((r) => r.code === 'A')!;
+  await throws(() => transportLib.setStudentTransport(newStudentId, { routeId: route.id, stopId: otherRoute.stops[0].id }, admin), /not on the route/);
+  assert.ok((await transportLib.listRiders(route.id)).some((r) => r.student_id === newStudentId));
+  await throws(() => transportLib.deleteRoute(route.id, admin), /ride this route/);
+  await transportLib.setStudentTransport(newStudentId, { routeId: null }, admin);
+  assert.ok(!(await transportLib.getStudentTransport(newStudentId)));
+  assert.ok(!(await hasAnyRow('student_fee_option', 'student_id = ? AND fee_item_id = ?', newStudentId, transportItem.id)), 'and the opt-in goes with it');
+});
+
+await test('a bed takes one boarder of the house’s gender at a time; allocations are kept as history', async () => {
+  const hostels = await hostelLib.listHostels();
+  assert.ok(hostels.length >= 4, 'four houses in the demo');
+  const girls = hostels.find((h) => h.gender === 'FEMALE')!;
+  const boys = hostels.find((h) => h.gender === 'MALE')!;
+  const freeGirls = (await hostelLib.listBeds(girls.id)).find((b) => !b.allocation_id && b.status === 'AVAILABLE')!;
+  const freeBoys = (await hostelLib.listBeds(boys.id)).find((b) => !b.allocation_id && b.status === 'AVAILABLE')!;
+  assert.ok(freeGirls && freeBoys, 'the seed leaves spare beds');
+  // The test student is a day scholar (female).
+  await throws(() => hostelLib.allocateBed(freeGirls.id, newStudentId, today, admin), /day scholar/);
+  await run("UPDATE student SET boarding_status = 'BOARDER' WHERE id = ?", newStudentId);
+  await throws(() => hostelLib.allocateBed(freeBoys.id, newStudentId, today, admin), /boys’ hostel/);
+  const { id: alloc } = await hostelLib.allocateBed(freeGirls.id, newStudentId, today, admin);
+  const bed = (await hostelLib.studentBed(newStudentId))!;
+  assert.strictEqual(bed.id, alloc);
+  assert.strictEqual(bed.hostel_name, girls.name);
+  await throws(() => hostelLib.allocateBed(freeGirls.id, siblingId, today, admin), /taken/);
+  assert.ok(!(await hostelLib.unallocatedBoarders()).some((s) => s.id === newStudentId), 'no longer in the queue');
+  // Moving to another bed vacates the first; both stay in the history.
+  const another = (await hostelLib.listBeds(girls.id)).find((b) => !b.allocation_id && b.status === 'AVAILABLE' && b.id !== freeGirls.id)!;
+  await hostelLib.allocateBed(another.id, newStudentId, today, admin);
+  const history = await hostelLib.studentBedHistory(newStudentId);
+  assert.strictEqual(history.length, 2);
+  assert.strictEqual(history.filter((h) => h.status === 'ACTIVE').length, 1);
+  await throws(() => hostelLib.setBedStatus(another.id, 'OUT_OF_SERVICE', admin), /occupied/);
+  await hostelLib.vacateBed(history.find((h) => h.status === 'ACTIVE')!.id, today, admin);
+  assert.ok(!(await hostelLib.studentBed(newStudentId)));
+  assert.ok((await hostelLib.unallocatedBoarders()).some((s) => s.id === newStudentId), 'a boarder without a bed is back in the queue');
+  await run("UPDATE student SET boarding_status = 'DAY' WHERE id = ?", newStudentId);
+});
+
+await test('library: accession numbers per copy, loan limits, overdue block, fines charged to the fee account through the G/L', async () => {
+  const setup = await libraryLib.getLibrarySetup();
+  assert.ok(setup.fine_gl_account_id, 'the demo names a fines income account');
+  const { id: bookId } = await libraryLib.saveBook(null, { title: 'Test Title', author: 'Tester', category: 'Test' }, admin);
+  const { added } = await libraryLib.addCopies(bookId, 2, admin);
+  assert.strictEqual(added.length, 2);
+  assert.ok(added.every((a) => /^ACC\d+/.test(a)), `accession numbers from the LIBRARY_BOOK series: ${added.join(', ')}`);
+  const before = await feeStatement.feeAccountSummary(newStudentId);
+  const finesIncome = async () => Number((await one<{ c: number }>('SELECT COALESCE(SUM(jl.credit) - SUM(jl.debit), 0)::bigint c FROM journal_line jl WHERE jl.gl_account_id = ?', setup.fine_gl_account_id))!.c);
+  const incomeBefore = await finesIncome();
+  // Issue: due date from the loan period.
+  const loan1 = await libraryLib.issueLoan({ accessionNo: added[0], studentId: newStudentId, issuedOn: today }, admin);
+  assert.strictEqual(loan1.dueOn, addDaysIso(today, setup.loan_days));
+  await throws(() => libraryLib.issueLoan({ accessionNo: added[0], studentId: siblingId }, admin), /is on loan/);
+  await throws(() => libraryLib.issueLoan({ accessionNo: added[1] }, admin), /Pick the borrower/);
+  // Backdated so it is overdue; then no further loan until it is back.
+  await run('UPDATE library_loan SET issued_on = ?, due_on = ? WHERE id = ?', addDaysIso(today, -20), addDaysIso(today, -6), loan1.id);
+  await throws(() => libraryLib.issueLoan({ accessionNo: added[1], studentId: newStudentId }, admin), /overdue/);
+  const { fine, daysLate } = await libraryLib.returnLoan(loan1.id, { returnedOn: today }, admin);
+  assert.strictEqual(daysLate, 6);
+  assert.strictEqual(fine, 6 * Number(setup.fine_per_day));
+  assert.strictEqual((await libraryLib.listCopies(bookId)).find((c) => c.accession_no === added[0])!.status, 'AVAILABLE');
+  // The fine goes to the fee account as a posted Sales Invoice.
+  const { invoiceNo } = await libraryLib.chargeFineToFeeAccount(loan1.id, admin);
+  assert.ok(invoiceNo);
+  const after = await feeStatement.feeAccountSummary(newStudentId);
+  assert.strictEqual(Number(after!.balance) - Number(before!.balance), fine, 'the fine is on the fee balance');
+  assert.strictEqual((await finesIncome()) - incomeBefore, fine, 'credited to the fines income account in the G/L');
+  await throws(() => libraryLib.chargeFineToFeeAccount(loan1.id, admin), /Already charged/);
+  // Limits: a student holds at most max_loans_student.
+  const extra = await libraryLib.addCopies(bookId, setup.max_loans_student + 1, admin);
+  for (let i = 0; i < setup.max_loans_student; i++) await libraryLib.issueLoan({ accessionNo: extra.added[i], studentId: newStudentId }, admin);
+  await throws(() => libraryLib.issueLoan({ accessionNo: extra.added[setup.max_loans_student], studentId: newStudentId }, admin), /limit/);
+  for (const l of await libraryLib.studentLoans(newStudentId)) if (l.status === 'ON_LOAN') await libraryLib.returnLoan(l.id, {}, admin);
+  const stats = await libraryLib.libraryStats();
+  assert.ok(stats.titles >= 18 && stats.on_loan >= 10, 'the demo library is stocked and lending');
 });
 
 /* ------------------------------------------------------------------------ */
@@ -1220,7 +1514,7 @@ const roleCentersLib = await import('../lib/roleCenters.ts');
 
 await test('the eight Role Centre profiles and the permission sets are seeded', async () => {
   const codes = (await all<{ code: string }>('SELECT code FROM profile ORDER BY sort')).map((r) => r.code);
-  assert.deepStrictEqual(codes, ['SUPER', 'SCHOOL_ADMIN', 'TEACHER', 'STUDENT_PARENT', 'FINANCE_MANAGER', 'ACCOUNTANT', 'HR_PAYROLL', 'SELF_SERVICE']);
+  assert.deepStrictEqual(codes, ['SUPER', 'SCHOOL_ADMIN', 'STUDENT_PARENT', 'FINANCE_MANAGER', 'ACCOUNTANT', 'HR_PAYROLL', 'SELF_SERVICE']);
   for (const name of ['Principal', 'Academics Officer', 'Teacher', 'Bursar', 'Accountant', 'HR & Payroll Officer', 'Student / Parent']) {
     const row = await one<{ id: number; lines: number }>(
       `SELECT r.id, COUNT(l.id) lines FROM role r LEFT JOIN permission_set_line l ON l.role_id = r.id
@@ -1283,12 +1577,26 @@ await test('the active Role Centre scopes which sidebar groups show', async () =
   // Super sees every group.
   assert.deepStrictEqual(groupsFor('SUPER'), NAV.map((g) => g.group));
   // A specialised centre sees Operations + Administration + only its own area.
-  const teacher = groupsFor('TEACHER');
-  assert.ok(teacher.includes('Operations') && teacher.includes('My Classes') && teacher.includes('Administration'));
-  assert.ok(!teacher.includes('Fees') && !teacher.includes('Finance') && !teacher.includes('Academics'));
+  const self = groupsFor('SELF_SERVICE');
+  assert.ok(self.includes('Operations') && self.includes('Self Service') && self.includes('Administration'));
+  assert.ok(!self.includes('Fees') && !self.includes('Finance') && !self.includes('Academics'));
   assert.ok(groupsFor('FINANCE_MANAGER').includes('Finance') && groupsFor('FINANCE_MANAGER').includes('Fees'));
   assert.ok(groupsFor('SCHOOL_ADMIN').includes('Academics') && !groupsFor('SCHOOL_ADMIN').includes('My School'));
   assert.ok(groupsFor('STUDENT_PARENT').includes('My School') && !groupsFor('STUDENT_PARENT').includes('Academics'));
+});
+
+await test('the Teacher Portal shows inside Self Service only for a login marked as a teacher', async () => {
+  const { NAV, isSubMenu } = await import('../lib/nav.ts');
+  const selfService = NAV.find((g) => g.group === 'Self Service')!;
+  assert.ok(selfService.items.some((e) => isSubMenu(e) && e.submenu === 'My Classes'), 'My Classes is a Self Service sub-menu');
+  const teacher = (await one<{ id: number }>("SELECT id FROM app_user WHERE username='teacher'"))!;
+  const su = await sessionFor(teacher.id);
+  assert.ok(su.isTeacher && permissions.canNav(su, 'TEACHER_PORTAL'), 'the demo teacher is marked as a teacher and sees the portal');
+  await run('UPDATE approval_user_setup SET is_teacher = 0 WHERE user_id = ?', teacher.id);
+  const off = await sessionFor(teacher.id);
+  assert.ok(!off.isTeacher && !permissions.canNav(off, 'TEACHER_PORTAL'), 'untick Teacher and the portal disappears, permission or not');
+  await throws(() => portalLib.requireTeacher({ id: teacher.id }), /not marked as a teacher/);
+  await run('UPDATE approval_user_setup SET is_teacher = 1 WHERE user_id = ?', teacher.id);
 });
 
 await test('every Role Centre aggregate returns a well-formed object on the seeded school', async () => {
@@ -1310,68 +1618,59 @@ section('Per-user permission overrides');
 
 const userPermsLib = await import('../lib/userPermissions.ts');
 
-const sessionFor = async (userId: number): Promise<SessionUser> => {
-  const tok = `up-${userId}-${Date.now()}-${Math.random()}`;
-  await run('INSERT INTO session (token, user_id, created_at, expires_at) VALUES (?,?,?,?)',
-    tok, userId, new Date().toISOString(), new Date(Date.now() + 3_600_000).toISOString());
-  const su = (await auth.userFromToken(tok))!;
-  await run('DELETE FROM session WHERE token = ?', tok);
-  return su;
-};
-
 await test('a DENY override removes a right the role grants', async () => {
-  const teller = (await one<{ id: number }>("SELECT id FROM app_user WHERE username='bursar'"))!;
-  await userPermsLib.resetUserPermissions(teller.id, admin);
+  const subject = (await one<{ id: number }>("SELECT id FROM app_user WHERE username='bursar'"))!;
+  await userPermsLib.resetUserPermissions(subject.id, admin);
 
-  const before = await sessionFor(teller.id);
+  const before = await sessionFor(subject.id);
   assert.ok(permissions.canPage(before, 'CASH_MGMT'), 'Bursar role grants the cash office');
   assert.ok(permissions.canAction(before, 'CASH_MGMT_RECEIPT_CREATE'));
 
-  await userPermsLib.setUserPermissions(teller.id, [
+  await userPermsLib.setUserPermissions(subject.id, [
     { objectType: 'PAGE', objectName: 'CASH_MGMT', rights: { execute: false } },
   ], admin);
 
-  const after = await sessionFor(teller.id);
+  const after = await sessionFor(subject.id);
   assert.ok(!permissions.canPage(after, 'CASH_MGMT'), 'the override hides the screen');
   assert.ok(!permissions.canAction(after, 'CASH_MGMT_RECEIPT_CREATE'), 'and every action behind it');
-  await userPermsLib.resetUserPermissions(teller.id, admin);
+  await userPermsLib.resetUserPermissions(subject.id, admin);
 });
 
 await test('a GRANT override adds a right the role lacks', async () => {
-  const teller = (await one<{ id: number }>("SELECT id FROM app_user WHERE username='teacher'"))!;
-  const before = await sessionFor(teller.id);
+  const subject = (await one<{ id: number }>("SELECT id FROM app_user WHERE username='teacher'"))!;
+  const before = await sessionFor(subject.id);
   assert.ok(!permissions.canAction(before, 'GL_READ'), 'the test role has no general-ledger access');
 
-  await userPermsLib.setUserPermissions(teller.id, [
+  await userPermsLib.setUserPermissions(subject.id, [
     { objectType: 'PAGE', objectName: 'GL', rights: { execute: true } },
     { objectType: 'TABLE', objectName: 'journal', rights: { read: true } },
     { objectType: 'TABLE', objectName: 'journal_line', rights: { read: true } },
     { objectType: 'TABLE', objectName: 'gl_account', rights: { read: true } },
   ], admin);
 
-  const after = await sessionFor(teller.id);
+  const after = await sessionFor(subject.id);
   assert.ok(permissions.canAction(after, 'GL_READ'), 'the override grants it');
-  await userPermsLib.resetUserPermissions(teller.id, admin);
+  await userPermsLib.resetUserPermissions(subject.id, admin);
 });
 
 await test('an additional Permission Set is unioned into the effective rights (BC model)', async () => {
-  const teller = (await one<{ id: number }>("SELECT id FROM app_user WHERE username='teacher'"))!;
+  const subject = (await one<{ id: number }>("SELECT id FROM app_user WHERE username='teacher'"))!;
   const financeRole = (await one<{ id: number }>("SELECT id FROM role WHERE name='Accountant'"))!;
-  await userPermsLib.setUserPermissionSets(teller.id, [], admin);
+  await userPermsLib.setUserPermissionSets(subject.id, [], admin);
 
-  const before = await sessionFor(teller.id);
+  const before = await sessionFor(subject.id);
   assert.ok(!permissions.canAction(before, 'GL_READ') && permissions.canAction(before, 'TEACHER_PORTAL_VIEW'));
 
-  await userPermsLib.setUserPermissionSets(teller.id, [financeRole.id], admin);
-  const after = await sessionFor(teller.id);
+  await userPermsLib.setUserPermissionSets(subject.id, [financeRole.id], admin);
+  const after = await sessionFor(subject.id);
   assert.ok(permissions.canAction(after, 'GL_READ'), 'Accountant rights are added…');
   assert.ok(permissions.canAction(after, 'TEACHER_PORTAL_VIEW'), '…without losing the Teacher rights (union)');
 
   assert.deepStrictEqual(
-    [...(await userPermsLib.listUserPermissionSets(teller.id)).map((s) => s.name)],
+    [...(await userPermsLib.listUserPermissionSets(subject.id)).map((s) => s.name)],
     ['Accountant'],
   );
-  await userPermsLib.setUserPermissionSets(teller.id, [], admin);
+  await userPermsLib.setUserPermissionSets(subject.id, [], admin);
 });
 
 await test('two users on the same role differ only by their overrides', async () => {
@@ -1379,8 +1678,8 @@ await test('two users on the same role differ only by their overrides', async ()
     "SELECT id, role_id FROM app_user WHERE username IN ('bursar','hr') ORDER BY username",
   );
   // Put both on the Bursar role for the test.
-  const tellerRole = (await one<{ id: number }>("SELECT id FROM role WHERE name='Bursar'"))!;
-  await run('UPDATE app_user SET role_id = ? WHERE id IN (?,?)', tellerRole.id, a.id, b.id);
+  const bursarRole = (await one<{ id: number }>("SELECT id FROM role WHERE name='Bursar'"))!;
+  await run('UPDATE app_user SET role_id = ? WHERE id IN (?,?)', bursarRole.id, a.id, b.id);
   await userPermsLib.resetUserPermissions(a.id, admin);
   await userPermsLib.resetUserPermissions(b.id, admin);
 
@@ -1391,7 +1690,7 @@ await test('two users on the same role differ only by their overrides', async ()
   const sa = await sessionFor(a.id);
   const sb = await sessionFor(b.id);
   assert.notDeepStrictEqual(sa.permissionSet.tables.receipt_header, sb.permissionSet.tables.receipt_header);
-  const roleSet = await auth.loadPermissionSet(tellerRole.id);
+  const roleSet = await auth.loadPermissionSet(bursarRole.id);
   assert.deepStrictEqual(sb.permissionSet.tables, roleSet.tables, 'the un-overridden user matches the role exactly');
 
   await userPermsLib.resetUserPermissions(a.id, admin);
@@ -1400,35 +1699,35 @@ await test('two users on the same role differ only by their overrides', async ()
 });
 
 await test('an override equal to the role default is not stored', async () => {
-  const teller = (await one<{ id: number }>("SELECT id FROM app_user WHERE username='bursar'"))!;
+  const subject = (await one<{ id: number }>("SELECT id FROM app_user WHERE username='bursar'"))!;
   const roleSet = await auth.loadPermissionSet(
-    (await one<{ role_id: number }>('SELECT role_id FROM app_user WHERE id = ?', teller.id))!.role_id,
+    (await one<{ role_id: number }>('SELECT role_id FROM app_user WHERE id = ?', subject.id))!.role_id,
   );
   const t = roleSet.tables.receipt_header!;
-  await userPermsLib.setUserPermissions(teller.id, [
+  await userPermsLib.setUserPermissions(subject.id, [
     { objectType: 'TABLE', objectName: 'receipt_header', rights: { ...t, execute: false } },
   ], admin);
-  const n = await one<{ n: number }>('SELECT COUNT(*) n FROM user_permission_line WHERE user_id = ?', teller.id);
+  const n = await one<{ n: number }>('SELECT COUNT(*) n FROM user_permission_line WHERE user_id = ?', subject.id);
   assert.strictEqual(Number(n?.n ?? 0), 0, 'a no-op override writes no row');
 });
 
 await test('a nav entry is hidden when the page is reachable but its data is not readable', async () => {
   // A permission set that grants the STUDENTS page Execute but NOT `student` table Read — the classic
   // way a hand-edited matrix leaves a module in the sidebar the user cannot actually use.
-  const teller = (await one<{ id: number }>("SELECT id FROM app_user WHERE username='bursar'"))!;
+  const subject = (await one<{ id: number }>("SELECT id FROM app_user WHERE username='bursar'"))!;
   const rid = Number((await run(
     "INSERT INTO role (name, description, is_system) VALUES ('ZZ Nav Test', 't', 0)",
   )).lastInsertRowid);
   await run("INSERT INTO permission_set_line (role_id, object_type, object_name, execute_perm) VALUES (?, 'PAGE', 'DASHBOARD', 1)", rid);
   await run("INSERT INTO permission_set_line (role_id, object_type, object_name, execute_perm) VALUES (?, 'PAGE', 'STUDENTS', 1)", rid);
-  const orig = (await one<{ role_id: number }>('SELECT role_id FROM app_user WHERE id = ?', teller.id))!.role_id;
-  await run('UPDATE app_user SET role_id = ? WHERE id = ?', rid, teller.id);
-  await userPermsLib.resetUserPermissions(teller.id, admin);
-  await userPermsLib.setUserPermissionSets(teller.id, [], admin);
+  const orig = (await one<{ role_id: number }>('SELECT role_id FROM app_user WHERE id = ?', subject.id))!.role_id;
+  await run('UPDATE app_user SET role_id = ? WHERE id = ?', rid, subject.id);
+  await userPermsLib.resetUserPermissions(subject.id, admin);
+  await userPermsLib.setUserPermissionSets(subject.id, [], admin);
 
   const tok = `nv-${Date.now()}`;
   await run('INSERT INTO session (token, user_id, created_at, expires_at) VALUES (?,?,?,?)',
-    tok, teller.id, new Date().toISOString(), new Date(Date.now() + 3_600_000).toISOString());
+    tok, subject.id, new Date().toISOString(), new Date(Date.now() + 3_600_000).toISOString());
   const su = (await auth.userFromToken(tok))!;
   await run('DELETE FROM session WHERE token = ?', tok);
 
@@ -1436,7 +1735,7 @@ await test('a nav entry is hidden when the page is reachable but its data is not
   assert.ok(!permissions.canNav(su as SessionUser, 'STUDENTS'), 'but the nav entry is hidden — no student read');
   assert.ok(permissions.canNav(su as SessionUser, 'DASHBOARD'), 'the dashboard entry still shows');
 
-  await run('UPDATE app_user SET role_id = ? WHERE id = ?', orig, teller.id);
+  await run('UPDATE app_user SET role_id = ? WHERE id = ?', orig, subject.id);
   await run('DELETE FROM role WHERE id = ?', rid);
 });
 

@@ -1,5 +1,5 @@
 /*
- * Payment Voucher printout — AL Rep52203425 "Payment Voucher" (Sacco ERP/ssrs/Payment Voucher.rdl),
+ * Payment Voucher printout — AL Rep52203425 "Payment Voucher" (ssrs/Payment Voucher.rdl),
  * which the AL pairs with its own Staff Claim and Petty Cash layouts.
  *
  * Built from a posted_payment_voucher and rendered through the shared document chrome in

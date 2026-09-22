@@ -9,7 +9,7 @@ import { saveUserSignature } from '@/app/actions/media';
 import type { UploadedFile } from '@/lib/types';
 
 /**
- * The signature slot on the User Setup card — the same upload-immediately pattern as a member's
+ * The signature slot on the User Setup card — the same upload-immediately pattern as a student's
  * biometric slot rather than a field inside a save-on-submit form, because the image goes to
  * Cloudinary the moment it is chosen and the record it belongs to already exists.
  *

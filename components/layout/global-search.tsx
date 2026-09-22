@@ -63,7 +63,7 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 /**
  * Every typed word must appear in the label, trail or keywords. Rank: whole-label prefix, then
  * a word-start match in the label, then anywhere in the label, then a trail/keyword-only hit —
- * so "mem app" puts Member Application above Member Applications' cousins.
+ * so "adm app" puts Admission Application above its cousins.
  */
 function score(entry: SearchEntry, words: string[]): number {
   const label = norm(entry.label);
