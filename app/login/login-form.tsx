@@ -4,13 +4,19 @@ import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { signIn, type SignInState } from '@/app/actions/auth';
 
+// The demonstration logins lib/seed.ts creates (password = username + '123'). Hidden in production,
+// where the seed disables every account but admin.
 const DEMO_USERS: [username: string, role: string][] = [
   ['admin', 'System Administrator'],
-  ['manager', 'Branch Manager'],
-  ['loans', 'Loans Officer'],
-  ['teller', 'Teller'],
-  ['finance', 'Finance Officer'],
-  ['auditor', 'Auditor'],
+  ['principal', 'Principal'],
+  ['registrar', 'Academics Officer'],
+  ['teacher', 'Teacher — Teacher Portal'],
+  ['bursar', 'Bursar — fees and receipts'],
+  ['accountant', 'Accountant'],
+  ['hr', 'HR & Payroll Officer'],
+  ['parent', 'Parent — Parent Portal'],
+  ['student', 'Student — Student Portal'],
+  ['auditor', 'Internal Auditor'],
 ];
 
 function SubmitButton() {
@@ -22,7 +28,7 @@ function SubmitButton() {
   );
 }
 
-export function LoginForm() {
+export function LoginForm({ showDemo = true }: { showDemo?: boolean }) {
   const [state, formAction] = useActionState<SignInState, FormData>(signIn, {});
   const userRef = useRef<HTMLInputElement>(null);
   const passRef = useRef<HTMLInputElement>(null);
@@ -49,16 +55,18 @@ export function LoginForm() {
         <div className="login-err">{state?.error}</div>
       </form>
 
-      <div className="demo-users">
-        <b>Demonstration accounts</b> — click to fill:
-        <div>
-          {DEMO_USERS.map(([username, role]) => (
-            <button key={username} type="button" title={role} onClick={() => fill(username)}>
-              {username}
-            </button>
-          ))}
+      {showDemo ? (
+        <div className="demo-users">
+          <b>Demonstration accounts</b> — click to fill (password is the username + 123):
+          <div>
+            {DEMO_USERS.map(([username, role]) => (
+              <button key={username} type="button" title={role} onClick={() => fill(username)}>
+                {username}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : null}
     </>
   );
 }
