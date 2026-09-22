@@ -1,0 +1,30 @@
+# PostgreSQL for local development.
+#
+#   docker compose up -d
+#
+# The data lives in a named volume, so `docker compose down` keeps the database
+# and `docker compose down -v` discards it.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: school-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: school
+      POSTGRES_PASSWORD: school
+      POSTGRES_DB: school
+      # Deterministic collation so ORDER BY on admission_no and document numbers is
+      # stable regardless of the host's locale.
+      POSTGRES_INITDB_ARGS: '--locale=C --encoding=UTF8'
+    ports:
+      - '5432:5432'
+    volumes:
+      - school-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U school -d school']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  school-pgdata:

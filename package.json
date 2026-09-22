@@ -1,26 +1,51 @@
 {
-  "name": "schoolmgmt",
-  "version": "0.1.0",
+  "name": "school-mgmt",
+  "version": "1.0.0",
+  "description": "School Management System — academics, fees, finance, HR & payroll on one ledger",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "prisma migrate deploy && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "test": "node --conditions=react-server test/verify.ts",
+    "postinstall": "prisma generate",
+    "reset": "prisma migrate reset",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio",
+    "db:migrate": "prisma migrate deploy",
+    "seed": "node --conditions=react-server scripts/seed.ts"
   },
+  "license": "MIT",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.127.0",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "cloudinary": "^2.10.0",
+    "exceljs": "^4.4.0",
     "next": "16.3.5",
+    "nodemailer": "^9.0.5",
+    "pg": "^8.23.0",
+    "qrcode": "^1.5.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "resend": "^6.19.0",
+    "server-only": "^0.0.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
+    "@types/node": "^26.2.0",
+    "@types/nodemailer": "^8.0.1",
+    "@types/pg": "^8.21.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "eslint": "^9.36.0",
     "eslint-config-next": "16.3.5",
-    "tailwindcss": "^4",
+    "prisma": "^7.9.1",
     "typescript": "^5"
   }
 }
