@@ -1444,7 +1444,9 @@ export async function seedSchoolServices(now: IsoDateTime, todayIso: IsoDate): P
       copies.push(...added);
     }
     // Loans: a spread of returned, out and overdue — one late return with a fine still to charge, one lost copy.
-    const readers = await all<{ id: number }>("SELECT s.id FROM student s JOIN grade_level g ON g.id = s.current_grade_level_id WHERE s.status = 'ACTIVE' AND g.sort >= 4 ORDER BY s.id LIMIT 40");
+    // Upper primary and above borrow; grade_level.sort runs within an education level, so order by the level first.
+    const readers = await all<{ id: number }>("SELECT s.id FROM student s JOIN grade_level g ON g.id = s.current_grade_level_id JOIN education_level el ON el.id = g.education_level_id WHERE s.status = 'ACTIVE' AND el.sort >= 3 ORDER BY el.sort, g.sort, s.id LIMIT 40");
+    if (!readers.length) readers.push(...await all<{ id: number }>("SELECT id FROM student WHERE status = 'ACTIVE' ORDER BY id LIMIT 40"));
     const staff = await all<{ id: number }>("SELECT id FROM employee WHERE status = 'ACTIVE' AND employee_type = 'TEACHER' ORDER BY id LIMIT 6");
     const copyIds = new Map((await all<{ id: number; accession_no: string }>('SELECT id, accession_no FROM library_copy')).map((c) => [c.accession_no, c.id]));
     const loans: unknown[][] = [];
@@ -1452,6 +1454,7 @@ export async function seedSchoolServices(now: IsoDateTime, todayIso: IsoDate): P
     let ci = 0;
     const take = () => copyIds.get(copies[ci++ % copies.length])!;
     const reader = (i: number) => readers[i % readers.length].id;
+    if (!readers.length) { trace('library (no students to lend to)'); return; }
     for (let i = 0; i < 24; i++) { const issued = addDays(todayIso, -int(20, 90)); const due = addDays(issued, 14); loans.push([take(), reader(i), null, issued, due, addDays(due, -int(0, 6)), 'RETURNED', 0, null, 'librarian', 'librarian', null]); }
     for (let i = 0; i < 3; i++) { const issued = addDays(todayIso, -int(30, 60)); const due = addDays(issued, 14); const late = int(3, 9); loans.push([take(), reader(24 + i), null, issued, due, addDays(due, late), 'RETURNED', K(10 * late), null, 'librarian', 'librarian', 'Returned late']); }
     for (let i = 0; i < 10; i++) { const c = take(); onLoan.push(c); const issued = addDays(todayIso, -int(1, 10)); loans.push([c, reader(27 + i), null, issued, addDays(issued, 14), null, 'ON_LOAN', 0, null, 'librarian', null, null]); }
