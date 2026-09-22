@@ -40,9 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Reference templates the system was assembled from (not part of the app)
-/SaccoDemo/
-/sms-kenya/
 
 # Prisma / local env
 .env.realbak
