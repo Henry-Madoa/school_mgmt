@@ -24,7 +24,7 @@ export interface NavGroup {
   /** Which Role Centres surface this group in the sidebar (Business Central: the Profile / Role
    *  Center defines the navigation). Omit for a group every Role Centre sees. The SUPER Role
    *  Centre always sees every group. Values are `profile.role_centre` keys —
-   *  SCHOOL_ADMIN | STUDENT_PARENT | FINANCE_MANAGER | ACCOUNTANT | HR_PAYROLL | SELF_SERVICE. */
+   *  SCHOOL_ADMIN | STUDENT | PARENT | FINANCE_MANAGER | ACCOUNTANT | HR_PAYROLL | SELF_SERVICE. */
   centres?: string[];
 }
 
@@ -94,9 +94,10 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
-    // The Student / Parent Portal — scoped to the login's own child(ren).
+    // The portal — scoped to the login's own child(ren). Both the Student and the Parent Role
+    // Centre share it; STUDENT_PARENT is the profile a school seeded before the split still has.
     group: 'My School',
-    centres: ['STUDENT_PARENT'],
+    centres: ['STUDENT', 'PARENT', 'STUDENT_PARENT'],
     items: [
       { path: '/portal', label: 'Overview', icon: '🎒', page: 'STUDENT_PORTAL' },
       { path: '/portal/timetable', label: 'Timetable', icon: '🗓', page: 'STUDENT_PORTAL' },

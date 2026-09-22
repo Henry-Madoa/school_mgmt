@@ -163,7 +163,7 @@ export interface Profile {
   code: string;
   name: string;
   description: string;
-  /** The Role Centre this profile lands on — one of SUPER | SCHOOL_ADMIN | TEACHER | STUDENT_PARENT | FINANCE_MANAGER
+  /** The Role Centre this profile lands on — one of SUPER | SCHOOL_ADMIN | STUDENT | PARENT | FINANCE_MANAGER
    *  | ACCOUNTANT for the seeded profiles. */
   role_centre: string;
   icon: string;

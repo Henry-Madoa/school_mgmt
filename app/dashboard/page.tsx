@@ -1,7 +1,8 @@
 import { requireAction } from '@/lib/session';
 import { SuperRoleCentre } from './centres/super';
 import { SchoolAdminRoleCentre } from './centres/school-admin';
-import { StudentParentRoleCentre } from './centres/student-parent';
+import { StudentRoleCentre } from './centres/student';
+import { ParentRoleCentre } from './centres/parent';
 import { FinanceManagerRoleCentre } from './centres/finance-manager';
 import { AccountantRoleCentre } from './centres/accountant';
 import { HrPayrollRoleCentre } from './centres/hr-payroll';
@@ -17,7 +18,10 @@ export default async function DashboardPage() {
   const user = await requireAction('DASHBOARD_VIEW');
   switch (user.activeProfile.role_centre) {
     case 'SCHOOL_ADMIN': return <SchoolAdminRoleCentre user={user} />;
-    case 'STUDENT_PARENT': return <StudentParentRoleCentre user={user} />;
+    case 'STUDENT': return <StudentRoleCentre user={user} />;
+    case 'PARENT': return <ParentRoleCentre user={user} />;
+    // A school seeded before the two were split still carries the combined profile.
+    case 'STUDENT_PARENT': return <ParentRoleCentre user={user} />;
     case 'FINANCE_MANAGER': return <FinanceManagerRoleCentre user={user} />;
     case 'ACCOUNTANT': return <AccountantRoleCentre user={user} />;
     case 'HR_PAYROLL': return <HrPayrollRoleCentre user={user} />;

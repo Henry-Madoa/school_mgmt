@@ -260,7 +260,8 @@ export const ROLES: RoleSeed[] = [
   {
     name: 'Student / Parent',
     description: 'The Student / Parent portal: timetable, grades, attendance, fees and announcements for your own child(ren).',
-    actions: ['STUDENT_PORTAL_VIEW', 'STUDENT_PORTAL_PAY', 'ANNOUNCEMENTS_READ'],
+    // DASHBOARD_VIEW is what opens the Role Centre a parent or student lands on at sign-in.
+    actions: ['DASHBOARD_VIEW', 'STUDENT_PORTAL_VIEW', 'STUDENT_PORTAL_PAY', 'ANNOUNCEMENTS_READ'],
   },
   {
     name: 'Internal Auditor',
@@ -449,7 +450,8 @@ async function seedReferenceData(now: IsoDateTime, todayIso: IsoDate): Promise<v
   const PROFILES: [string, string, string, string, number, 0 | 1][] = [
     ['SUPER', 'Super Role Centre', 'The whole school at a glance — academics and money.', '▤', 10, 1],
     ['SCHOOL_ADMIN', 'School Administration', 'Admissions, classes, registers, marks and report cards.', '🎓', 20, 0],
-    ['STUDENT_PARENT', 'Student / Parent Portal', 'Timetable, grades, attendance, fees and announcements.', '🎒', 40, 0],
+    ['STUDENT', 'Student Portal', 'Your timetable, results, attendance, library books and school bus.', '🎒', 40, 0],
+    ['PARENT', 'Parent Portal', 'Your children: fees and payments, attendance, report cards and notices from the school.', '👪', 45, 0],
     ['FINANCE_MANAGER', 'Finance Manager Role Centre', 'Fee collection, the balance sheet, cost cover and approvals.', '📈', 50, 0],
     ['ACCOUNTANT', 'Accountant Role Centre', 'Journals, the trial balance, reconciliations and tax.', '📒', 60, 0],
     ['HR_PAYROLL', 'HR & Payroll Role Centre', 'Employee records, leave and payroll processing.', '🧑‍💼', 70, 0],
@@ -458,15 +460,15 @@ async function seedReferenceData(now: IsoDateTime, todayIso: IsoDate): Promise<v
   for (const [code, name, description, icon, sort, isDefault] of PROFILES) await run(INS_PROFILE, code, name, description, code, icon, sort, isDefault, now);
   const profileId = async (code: string): Promise<number> => (await one<{ id: number }>('SELECT id FROM profile WHERE code = ?', code))!.id;
   const assign: Record<string, string[]> = {
-    admin: ['SUPER', 'SCHOOL_ADMIN', 'STUDENT_PARENT', 'FINANCE_MANAGER', 'ACCOUNTANT', 'HR_PAYROLL', 'SELF_SERVICE'],
+    admin: ['SUPER', 'SCHOOL_ADMIN', 'STUDENT', 'PARENT', 'FINANCE_MANAGER', 'ACCOUNTANT', 'HR_PAYROLL', 'SELF_SERVICE'],
     principal: ['SUPER', 'SCHOOL_ADMIN', 'FINANCE_MANAGER', 'HR_PAYROLL', 'SELF_SERVICE'],
     registrar: ['SCHOOL_ADMIN', 'SELF_SERVICE'],
     teacher: ['SELF_SERVICE'],
     bursar: ['FINANCE_MANAGER', 'SCHOOL_ADMIN', 'SELF_SERVICE'],
     accountant: ['ACCOUNTANT', 'FINANCE_MANAGER', 'SELF_SERVICE'],
     hr: ['HR_PAYROLL', 'SELF_SERVICE'],
-    parent: ['STUDENT_PARENT'],
-    student: ['STUDENT_PARENT'],
+    parent: ['PARENT'],
+    student: ['STUDENT'],
     auditor: ['SUPER', 'FINANCE_MANAGER', 'ACCOUNTANT'],
   };
   for (const [un, codes] of Object.entries(assign)) {

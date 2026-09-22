@@ -1,19 +1,22 @@
 /*
  * Role Explorer — Business Central's "Explore all" (the ☰ button): one screen that lays out
- * every Role Centre profile in the system as an area, each with its feature groups and page
- * counts, so a user can see the whole application at once and jump anywhere. Built on the
- * server for the signed-in user: pages they cannot open are left out (same canNav rule as the
- * sidebar), and an area with nothing left is dropped.
+ * the Role Centres a user actually holds as areas, each with its feature groups and page counts,
+ * so they can see their whole application at once and jump anywhere.
  *
- * Areas: one per profile (its Role Centre's navigation, grouped by sidebar group), with the
- * active profile flagged as "My Role Centre"; plus System Administration — the Admin Centre's
- * screens, one group per Setup Pool category.
+ * Two filters, both necessary. The areas are the Profiles an administrator has assigned to this
+ * user (system administrators hold them all) — a pupil is not shown the Parent Portal, the
+ * Accountant's ledger or the HR centre merely because those exist. Within an area, a page the
+ * user's permission set does not unlock is left out, on the same canNav rule as the sidebar, and
+ * an area with nothing left is dropped.
+ *
+ * Areas: one per assigned profile (its Role Centre's navigation, grouped by sidebar group), the
+ * active one flagged as "My Role Centre"; plus System Administration — the Admin Centre's
+ * screens, one group per Setup Pool category — for the users who can open it.
  */
 import { NAV, isSubMenu, groupInRoleCentre, type NavItem } from './nav.ts';
 import { ADMIN_TABS, POOL_GROUPS, WORKFLOW_TABS, SECURITY_TABS, DATA_TABS, COMPANY_TABS, hasTabAccess } from './adminNav.ts';
 import { canNav } from './permissions.ts';
-import { listProfiles } from './profiles.ts';
-import type { SessionUser } from './types.ts';
+import type { Profile, SessionUser } from './types.ts';
 
 export type ExplorerKind = 'page' | 'report' | 'admin';
 
@@ -96,9 +99,16 @@ function administrationArea(user: SessionUser): ExplorerArea | null {
 }
 
 export async function buildRoleExplorer(user: SessionUser): Promise<ExplorerArea[]> {
-  const profiles = await listProfiles();
+  // The user's own Role Centres, never the whole catalogue. `profiles` already holds every
+  // profile assigned to them, and every profile for a system administrator.
+  const assigned: Profile[] = user.profiles.length ? user.profiles : [user.activeProfile];
+  // Two profiles can point at the same Role Centre (a custom profile on a stock centre), which
+  // would otherwise list the same pages twice.
+  const seen = new Set<string>();
   const areas: ExplorerArea[] = [];
-  for (const p of profiles) {
+  for (const p of assigned) {
+    if (seen.has(p.role_centre)) continue;
+    seen.add(p.role_centre);
     const groups = groupsForCentre(user, p.role_centre);
     if (!groups.length) continue;
     areas.push({

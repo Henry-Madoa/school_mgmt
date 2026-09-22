@@ -140,9 +140,12 @@ npm run reset      # drop, re-migrate and reseed — destroys all data
 - **Teacher Portal (`/my-classes`)** — part of Employee Self Service for a login marked as a
   teacher in User Setup: my classes, today's lessons, mark the register, enter marks, notices to my
   class. Every action is checked against the teacher's own assignments.
-- **Student / Parent Portal (`/portal`)** — timetable, marks and published report cards, attendance,
-  fees with statement and *Pay with M-Pesa*, announcements. A parent with several children switches
-  between them.
+- **Student Portal and Parent Portal (`/portal`)** — two Role Centres over the same pages. A pupil
+  lands on today's lessons, their results and attendance, the books they have out and their bus stop;
+  a parent lands on fees across all their children, attendance, report cards and notices. Both reach
+  the same pages: timetable, marks and published report cards, attendance, fees with statement and
+  *Pay with M-Pesa*, announcements, and the bus, boarding and library page. A parent with several
+  children switches between them.
 
 ### School services — transport, hostel, library
 
@@ -183,10 +186,12 @@ and the ledger within the caller's permissions.
 
 ### Role Centres
 
-Each profile is a landing page — Super, School Administration, Student / Parent Portal, Finance
+Each profile is a landing page — Super, School Administration, Student Portal, Parent Portal, Finance
 Manager, Accountant, HR & Payroll, Employee Self Service (which carries the Teacher Portal for
 teaching staff) — and scopes the sidebar to its own area. A profile grants no permissions; those come from the role's permission set and any
-per-user overrides.
+per-user overrides. *Explore all* (the ☰ button) maps only the Role Centres the user actually
+holds, with pages their permission set does not unlock left out — a pupil sees their own portal,
+not the Parent Portal that shares its pages, nor the ledger.
 
 ---
 
@@ -269,7 +274,7 @@ app/                     routes — one folder per module, each with a layout wr
   admissions/ incidents/ the admissions pipeline; discipline, medical and exeat records
   transport/ hostel/ library/  school services — buses (fixed assets), drivers (employees), routes, work tickets; beds; the catalogue and loan desk
   my-classes/            the Teacher Portal (inside Employee Self Service)
-  portal/                the Student / Parent Portal
+  portal/                the student and parent portal
   admin/                 the Admin Centre (setup pool, security, workflows, data, companies)
   actions/               Server Actions — thin permission-checking wrappers over lib/
   api/ ODataV4/ WS/      callbacks (M-Pesa), exports, the OData and SOAP web services

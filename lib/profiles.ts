@@ -19,7 +19,7 @@ export const getProfile = (code: string): Promise<Profile | undefined> =>
 
 /** The Role Centre keys the dashboard dispatcher knows how to render. A custom profile must pick
  *  one of these for its `role_centre`. */
-export const ROLE_CENTRES = ['SUPER', 'SCHOOL_ADMIN', 'STUDENT_PARENT', 'FINANCE_MANAGER', 'ACCOUNTANT', 'HR_PAYROLL', 'SELF_SERVICE'] as const;
+export const ROLE_CENTRES = ['SUPER', 'SCHOOL_ADMIN', 'STUDENT', 'PARENT', 'FINANCE_MANAGER', 'ACCOUNTANT', 'HR_PAYROLL', 'SELF_SERVICE'] as const;
 export type RoleCentre = (typeof ROLE_CENTRES)[number];
 
 export interface ProfileInput {

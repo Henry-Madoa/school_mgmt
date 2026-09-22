@@ -1512,9 +1512,9 @@ section('Role Centres & Profiles');
 const profilesLib = await import('../lib/profiles.ts');
 const roleCentersLib = await import('../lib/roleCenters.ts');
 
-await test('the eight Role Centre profiles and the permission sets are seeded', async () => {
+await test('the Role Centre profiles and the permission sets are seeded', async () => {
   const codes = (await all<{ code: string }>('SELECT code FROM profile ORDER BY sort')).map((r) => r.code);
-  assert.deepStrictEqual(codes, ['SUPER', 'SCHOOL_ADMIN', 'STUDENT_PARENT', 'FINANCE_MANAGER', 'ACCOUNTANT', 'HR_PAYROLL', 'SELF_SERVICE']);
+  assert.deepStrictEqual(codes, ['SUPER', 'SCHOOL_ADMIN', 'STUDENT', 'PARENT', 'FINANCE_MANAGER', 'ACCOUNTANT', 'HR_PAYROLL', 'SELF_SERVICE']);
   for (const name of ['Principal', 'Academics Officer', 'Teacher', 'Bursar', 'Accountant', 'HR & Payroll Officer', 'Student / Parent']) {
     const row = await one<{ id: number; lines: number }>(
       `SELECT r.id, COUNT(l.id) lines FROM role r LEFT JOIN permission_set_line l ON l.role_id = r.id
@@ -1570,6 +1570,43 @@ await test('assigning profiles keeps the active one valid; an unassigned choice 
   await profilesLib.setUserProfiles(u.id, held, admin);
 });
 
+await test('Explore all lists only the Role Centres the user actually holds', async () => {
+  const { buildRoleExplorer } = await import('../lib/roleExplorer.ts');
+  const areasFor = async (username: string) => {
+    const u = (await one<{ id: number }>('SELECT id FROM app_user WHERE username = ?', username))!;
+    return (await buildRoleExplorer(await sessionFor(u.id))).map((a) => a.key);
+  };
+
+  // A pupil sees their own portal and nothing else — not the Parent Portal that shares its pages,
+  // not the Accountant's ledger, not System Administration.
+  const student = await areasFor('student');
+  assert.deepStrictEqual(student, ['STUDENT'], `a student sees only their own centre, got ${student.join(', ')}`);
+
+  // A parent likewise, and the two are genuinely different centres.
+  assert.deepStrictEqual(await areasFor('parent'), ['PARENT']);
+
+  // A teacher's areas never include a finance or administration centre.
+  const teacher = await areasFor('teacher');
+  assert.ok(!teacher.some((k) => ['FINANCE_MANAGER', 'ACCOUNTANT', 'HR_PAYROLL', 'administration'].includes(k)),
+    `a teacher sees no finance or admin area, got ${teacher.join(', ')}`);
+
+  // Every area a user does see is one of their own profiles (System Administration aside, which is
+  // gated by the Admin Centre's own permissions rather than by a profile).
+  for (const username of ['student', 'parent', 'teacher', 'bursar']) {
+    const u = (await one<{ id: number }>('SELECT id FROM app_user WHERE username = ?', username))!;
+    const session = await sessionFor(u.id);
+    const held = new Set(session.profiles.map((x) => x.code));
+    for (const key of (await buildRoleExplorer(session)).map((a) => a.key)) {
+      assert.ok(held.has(key) || key === 'administration', `${username} was offered ${key}, which is not theirs`);
+    }
+  }
+
+  // The system administrator still sees the whole application.
+  const adminAreas = await areasFor('admin');
+  assert.ok(adminAreas.includes('STUDENT') && adminAreas.includes('PARENT') && adminAreas.includes('administration'),
+    'an administrator keeps every area');
+});
+
 await test('the active Role Centre scopes which sidebar groups show', async () => {
   const { NAV, groupInRoleCentre } = await import('../lib/nav.ts');
   const groupsFor = (centre: string) => NAV.filter((g) => groupInRoleCentre(g, centre)).map((g) => g.group);
@@ -1582,7 +1619,10 @@ await test('the active Role Centre scopes which sidebar groups show', async () =
   assert.ok(!self.includes('Fees') && !self.includes('Finance') && !self.includes('Academics'));
   assert.ok(groupsFor('FINANCE_MANAGER').includes('Finance') && groupsFor('FINANCE_MANAGER').includes('Fees'));
   assert.ok(groupsFor('SCHOOL_ADMIN').includes('Academics') && !groupsFor('SCHOOL_ADMIN').includes('My School'));
-  assert.ok(groupsFor('STUDENT_PARENT').includes('My School') && !groupsFor('STUDENT_PARENT').includes('Academics'));
+  // A pupil and a parent land on different Role Centres but share the same portal menu.
+  for (const centre of ['STUDENT', 'PARENT']) {
+    assert.ok(groupsFor(centre).includes('My School') && !groupsFor(centre).includes('Academics'), `${centre} sees the portal menu only`);
+  }
 });
 
 await test('the Teacher Portal shows inside Self Service only for a login marked as a teacher', async () => {
