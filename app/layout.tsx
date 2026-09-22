@@ -24,9 +24,9 @@ export async function generateMetadata(): Promise<Metadata> {
   const org = await getOrgBrand();
   return {
     title: `${org?.short_name || org?.name || 'School'} — School Management System`,
-    description: 'Core Banking & Management Information System',
+    description: 'School Management Information System',
     icons: {
-      icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏦</text></svg>",
+      icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>",
     },
   };
 }

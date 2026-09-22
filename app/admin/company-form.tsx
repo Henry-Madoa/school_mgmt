@@ -221,7 +221,7 @@ export function CompanyForm({ org, logoSrc, signatureSrc, mediaEnabled }: Compan
               <div className="mark">{initials(previewName)}</div>
               <div>
                 <div className="name">{previewName}</div>
-                <div className="sub">Core Banking System</div>
+                <div className="sub">School Management System</div>
               </div>
             </div>
             <div style={{ marginTop: 14 }}>

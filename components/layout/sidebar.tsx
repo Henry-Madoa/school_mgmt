@@ -154,7 +154,7 @@ export function Sidebar({ org, user, allowedPaths, badges = {} }: SidebarProps) 
             {org.logo ? <img src={org.logo} alt="" /> : <div className="mark">{initials(name)}</div>}
             <div>
               <div className="name">{name}</div>
-              <div className="sub">Core Banking System</div>
+              <div className="sub">School Management System</div>
             </div>
           </Link>
           <button type="button" className="sidebar-collapse" onClick={hide}
