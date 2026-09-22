@@ -365,6 +365,17 @@ await test('moving a student closes the old enrolment and opens a new one', asyn
   await studentsLib.placeStudent(newStudentId, grade4East.id, admin);
 });
 
+await test('editing a student refreshes the fee account contact details but keeps its posting setup', async () => {
+  const before = (await studentsLib.getStudent(newStudentId))!;
+  const cust = (await one<{ customer_posting_group_code: string | null; payment_terms_code: string | null; reminder_terms_code: string | null }>('SELECT customer_posting_group_code, payment_terms_code, reminder_terms_code FROM customer WHERE id = ?', before.customer_id))!;
+  assert.ok(cust.customer_posting_group_code, 'the account was opened with the default posting group');
+  await studentsLib.updateStudent(newStudentId, { firstName: 'Test', lastName: 'Learner', gender: 'FEMALE', dateOfBirth: '2016-03-04', admissionDate: today, address: 'New address' },
+    before.guardians.map((g) => ({ id: g.id, fullName: g.full_name, phone: g.phone, email: 'test.parent2@example.com', relationship: g.relationship, isPrimary: g.is_primary })), admin);
+  const after = (await one<{ customer_posting_group_code: string | null; payment_terms_code: string | null; reminder_terms_code: string | null; email: string | null }>('SELECT customer_posting_group_code, payment_terms_code, reminder_terms_code, email FROM customer WHERE id = ?', before.customer_id))!;
+  assert.strictEqual(after.email, 'test.parent2@example.com', 'the guardian email reached the fee account');
+  assert.deepStrictEqual([after.customer_posting_group_code, after.payment_terms_code, after.reminder_terms_code], [cust.customer_posting_group_code, cust.payment_terms_code, cust.reminder_terms_code], 'posting group and terms untouched');
+});
+
 await test('a suspended student drops off the roster; the fee account keeps its balance', async () => {
   await studentsLib.setStudentStatus(newStudentId, 'SUSPENDED', 'test', admin);
   assert.ok(!(await studentsLib.listStreamRoster(grade4East.id)).some((s) => s.id === newStudentId));

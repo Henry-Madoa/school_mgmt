@@ -17,6 +17,10 @@ for (const line of fs.existsSync('.env') ? fs.readFileSync(path.join(process.cwd
 if (process.env.DATABASE_URL && !process.env.DIRECT_DATABASE_URL) process.env.DATABASE_URL = process.env.DATABASE_URL.replace('-pooler.', '.');
 else if (process.env.DIRECT_DATABASE_URL) process.env.DATABASE_URL = process.env.DIRECT_DATABASE_URL;
 process.env.DB_QUERY_TIMEOUT_MS ??= '600000';
+process.env.DB_CONNECT_TIMEOUT_MS ??= '60000'; // a suspended Neon compute can take >10 s to wake
+// Over a high-latency link (~250 ms a query from Nairobi to a US region) the whole seed can
+// take well over an hour, so the CLI allows the outer transaction four.
+process.env.SEED_TX_TIMEOUT_MS ??= String(4 * 3_600_000);
 
 const { seedIfEmpty } = await import('../lib/seed.ts');
 const started = Date.now();

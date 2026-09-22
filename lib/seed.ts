@@ -6,7 +6,7 @@
  * organisation already exists.
  */
 import crypto from 'node:crypto';
-import { one, all, run, tx, nextSequence } from './db.ts';
+import { one, all, run, tx, nextSequence, hasAnyRow } from './db.ts';
 import { hashPassword } from './auth.ts';
 import { PRESETS } from './themes.ts';
 import { addMonths } from './dates.ts';
@@ -284,26 +284,40 @@ const demoSeedWanted = (): boolean => {
   return process.env.NODE_ENV !== 'production';
 };
 
-export async function seedIfEmpty(): Promise<SeedResult> {
-  if ((await one<{ c: number }>('SELECT COUNT(*) c FROM organisation'))!.c > 0) return { seeded: false };
+/** The demonstration school is pending while the setup data exists but no academic year does. */
+const demoPending = async (): Promise<boolean> => !(await hasAnyRow('academic_year'));
 
+export async function seedIfEmpty(): Promise<SeedResult> {
   const now = new Date().toISOString();
   const todayIso = now.slice(0, 10);
   const demo = demoSeedWanted();
 
   /*
-   * One outer transaction for the whole seed. Every service call nests into a
-   * SAVEPOINT rather than committing on its own, which turns thousands of
-   * WAL commits into one and cuts a cold start from minutes to seconds.
+   * Two committed stages, each one transaction (service calls nest into SAVEPOINTs, so a
+   * stage is still all-or-nothing): the setup data, then the demonstration school. A first
+   * boot that dies in the second stage — a remote database over a slow link can take the best
+   * part of an hour to post a school's worth of fee invoices — leaves the setup in place and
+   * the next call resumes with the school alone rather than starting over or, worse, treating
+   * the half-seeded database as seeded.
    */
+  const hasOrg = (await one<{ c: number }>('SELECT COUNT(*) c FROM organisation'))!.c > 0;
+  if (hasOrg && (!demo || !(await demoPending()))) return { seeded: false };
+
+  let hardened: Pick<SeedResult, 'adminPassword'> = {};
+  if (!hasOrg) {
+    hardened = await tx(async () => {
+      await seedReferenceData(now, todayIso);
+      return demo ? {} : hardenForProduction();
+    }, { timeout: Number(process.env.SEED_TX_TIMEOUT_MS) || 3_600_000 });
+    if (!demo) return { seeded: true, demo, ...hardened };
+  }
+
   const counts = await tx(async () => {
-    await seedReferenceData(now, todayIso);
-    if (!demo) return hardenForProduction();
     const result = await seedDemoSchool(now, todayIso);
     await seedFixedAssets(now, todayIso);
     await seedPayables(now, todayIso);
     return result;
-  }, { timeout: 3_600_000 });
+  }, { timeout: Number(process.env.SEED_TX_TIMEOUT_MS) || 3_600_000 });
 
   return { seeded: true, demo, ...counts };
 }
@@ -928,7 +942,7 @@ async function seedDemoSchool(now: IsoDateTime, todayIso: IsoDate): Promise<Pick
   let parentLoginGuardian: number | null = null;
   let studentLoginStudent: number | null = null;
   for (const st of streamIds) {
-    const size = int(11, 16);
+    const size = int(9, 13);
     for (let i = 0; i < size; i++) {
       const female = rnd() < 0.5;
       const last = pick(LAST);

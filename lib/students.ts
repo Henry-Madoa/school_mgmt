@@ -219,8 +219,21 @@ async function syncFeeCustomer(studentId: number, user: Actor): Promise<void> {
     blocked: s.status === 'ACTIVE' ? '' : 'Ship',
   };
   if (s.customer_id) {
-    const c = await one<{ no: string }>('SELECT no FROM customer WHERE id = ?', s.customer_id);
-    if (c) { await updateCustomer(c.no, input, user); return; }
+    // Only the contact details are ours to refresh — the posting group, terms, dimensions and
+    // credit limit the bursar set on the fee account stay as they are.
+    const c = await one<{ no: string; customer_posting_group_code: string | null; payment_terms_code: string | null; payment_method_code: string | null; reminder_terms_code: string | null; fin_charge_terms_code: string | null; salesperson: string | null; currency_code: string | null; credit_limit: number; global_dimension_1_id: number | null; global_dimension_2_id: number | null; address_2: string | null; city: string | null; post_code: string | null; country: string | null }>(
+      'SELECT no, customer_posting_group_code, payment_terms_code, payment_method_code, reminder_terms_code, fin_charge_terms_code, salesperson, currency_code, credit_limit, global_dimension_1_id, global_dimension_2_id, address_2, city, post_code, country FROM customer WHERE id = ?', s.customer_id,
+    );
+    if (c) {
+      await updateCustomer(c.no, {
+        ...input, creditLimit: Number(c.credit_limit),
+        customerPostingGroupCode: c.customer_posting_group_code, paymentTermsCode: c.payment_terms_code, paymentMethodCode: c.payment_method_code,
+        reminderTermsCode: c.reminder_terms_code, finChargeTermsCode: c.fin_charge_terms_code, salesperson: c.salesperson, currencyCode: c.currency_code,
+        globalDimension1Id: c.global_dimension_1_id, globalDimension2Id: c.global_dimension_2_id,
+        address2: c.address_2, city: c.city, postCode: c.post_code, country: c.country,
+      }, user);
+      return;
+    }
   }
   const { no } = await createCustomer(input, user);
   const c = await one<{ id: number }>('SELECT id FROM customer WHERE no = ?', no);

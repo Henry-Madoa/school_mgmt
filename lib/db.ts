@@ -64,7 +64,7 @@ function connect(schema: string = DEFAULT_SCHEMA): PrismaClient {
       // DB_QUERY_TIMEOUT_MS lets a long-running script (the seed over a slow link) wait longer.
       query_timeout: Number(process.env.DB_QUERY_TIMEOUT_MS) || 30_000,
       statement_timeout: Number(process.env.DB_QUERY_TIMEOUT_MS) || 30_000,
-      connectionTimeoutMillis: 10_000,
+      connectionTimeoutMillis: Number(process.env.DB_CONNECT_TIMEOUT_MS) || 10_000,
       keepAlive: true,
     }),
   });
