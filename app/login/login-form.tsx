@@ -4,8 +4,8 @@ import { useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { signIn, type SignInState } from '@/app/actions/auth';
 
-// The demonstration logins lib/seed.ts creates (password = username + '123'). Hidden in production,
-// where the seed disables every account but admin.
+// The demonstration logins lib/seed.ts creates (password = username + '123'). Offered only while
+// those accounts are still enabled — see auth.ts's demoAccountsAvailable().
 const DEMO_USERS: [username: string, role: string][] = [
   ['admin', 'System Administrator'],
   ['principal', 'Principal'],

@@ -1,12 +1,13 @@
 import { redirect } from 'next/navigation';
 import { getOrgBrand } from '@/lib/org';
 import { getCurrentUser } from '@/lib/session';
+import { demoAccountsAvailable } from '@/lib/auth';
 import { LoginForm } from './login-form';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 
 export default async function LoginPage() {
   if (await getCurrentUser()) redirect('/dashboard');
-  const org = await getOrgBrand();
+  const [org, showDemo] = await Promise.all([getOrgBrand(), demoAccountsAvailable()]);
 
   return (
     <div className="login-wrap">
@@ -25,7 +26,7 @@ export default async function LoginPage() {
         <div className="login-card">
           <h2>Sign in</h2>
           <p className="sub">School Management System</p>
-          <LoginForm showDemo={process.env.NODE_ENV !== 'production' || process.env.SEED_DEMO_DATA === 'true'} />
+          <LoginForm showDemo={showDemo} />
         </div>
       </div>
     </div>

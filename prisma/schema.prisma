@@ -4073,6 +4073,7 @@ model grade_level {
   subject_offering   subject_offering[]
   fee_structure      fee_structure[]
 
+
   @@unique([education_level_id, name], map: "ux_grade_level_name")
 }
 
@@ -4334,6 +4335,7 @@ model admission_application {
   applied_at           String
   decided_at           String?
   created_by           String?
+
 
   @@index([status], map: "ix_admission_application_status")
 }
@@ -4743,3 +4745,4 @@ model announcement {
 
   @@index([audience], map: "ix_announcement_audience")
 }
+

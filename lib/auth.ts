@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { one, all, run, audit } from './db.ts';
+import { one, all, run, audit, hasAnyRow } from './db.ts';
 import { AppError } from './errors.ts';
 import { passwordStrengthError } from './password.ts';
 import type {
@@ -269,6 +269,15 @@ export class LockedOutError extends Error {
  * password is even checked. A successful sign-in clears the count. Unknown usernames are refused
  * the same way as wrong passwords, with the same timing, so the response does not reveal which.
  */
+/**
+ * Whether the login page may offer the demonstration accounts: true only while the demo school's
+ * own logins are still enabled. A production first boot disables every account but `admin`
+ * (seed.ts's hardenForProduction), and a real school's database never has them — so the panel
+ * appears on a demo deployment and disappears by itself the moment the data is real.
+ */
+export const demoAccountsAvailable = (): Promise<boolean> =>
+  hasAnyRow('app_user', "username = 'student' AND status <> 'DISABLED'");
+
 export async function login(username: unknown, password: unknown, ip?: string, userAgent?: string): Promise<LoginResult | TwoFactorPending | null> {
   const row = await one<AppUser>('SELECT * FROM app_user WHERE username = ?', String(username || '').trim());
   if (row?.locked_until && new Date(row.locked_until) > new Date()) {
